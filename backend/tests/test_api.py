@@ -26,7 +26,9 @@ def test_lesson_is_available(client):
 
     assert response.status_code == 200
     assert response.json()["slug"] == "greetings"
-    assert len(response.json()["exercises"]) == 2
+    exercises = response.json()["exercises"]
+    assert len(exercises) >= 5
+    assert any(exercise["type"] == "dialogue" for exercise in exercises)
 
 
 def test_all_a1_lessons_have_substantive_theory(client):
@@ -39,6 +41,9 @@ def test_all_a1_lessons_have_substantive_theory(client):
         assert response.status_code == 200
         theory = response.json()["theory"] or ""
         assert len(theory) >= 200, lesson["slug"]
+        exercises = response.json()["exercises"]
+        assert len(exercises) >= 3, lesson["slug"]
+        assert any(exercise["type"] == "dialogue" for exercise in exercises), lesson["slug"]
 
 
 def test_unknown_lesson_returns_404(client):

@@ -52,6 +52,12 @@ class DiaryTutorProvider:
         )
 
 
+class PracticeTutorProvider(FakeTutorProvider):
+    def respond(self, context: TutorContext) -> str:
+        assert "Сценарий:" in context.prompt
+        return super().respond(context)
+
+
 def test_tutor_message_uses_learning_context(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
 
@@ -266,6 +272,42 @@ def test_theory_request_returns_current_lesson_theory_without_repeating_exercise
     assert response.json()["current_phase"] == "theory"
     assert "Текущая тема:" in response.json()["response"]
     assert "готов к упражнению" in response.json()["response"]
+
+
+def test_practice_prompt_contains_dialogue_scenario(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: PracticeTutorProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "готов к упражнению"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["current_phase"] == "practice"
+
+
+def test_roadmap_lesson_selection_switches_dialogue_topic(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+
+    selected = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/select-lesson",
+        json={"lesson_id": 3},
+    )
+
+    assert selected.status_code == 200
+    assert selected.json()["current_lesson_title"] == "Числа"
+    assert selected.json()["current_phase"] == "theory"
+
+    theory = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "Покажи подробную теорию по текущей теме"},
+    )
+
+    assert theory.status_code == 200
+    assert "Числа" in theory.json()["response"]
 
 
 def test_progress_reset_returns_to_first_lesson_and_clears_learning_data(client):

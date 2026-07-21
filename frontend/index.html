@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Learning Platform</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=7" />
+    <link rel="stylesheet" href="/ui/styles.css?v=13" />
   </head>
   <body>
     <main class="shell">
@@ -14,6 +14,13 @@
           <h1>Учебный кабинет Sergej</h1>
         </div>
         <div class="topbar-actions">
+          <nav class="main-navigation" aria-label="Основные разделы">
+            <button type="button" class="main-nav-link active" data-view-link="learning">Обучение</button>
+            <button type="button" class="main-nav-link" data-view-link="exercises">Упражнения</button>
+            <button type="button" class="main-nav-link" data-view-link="vocabulary">Слова</button>
+            <button type="button" class="main-nav-link" data-view-link="diary">Дневник</button>
+            <button type="button" class="main-nav-link" data-view-link="homework">Домашнее задание</button>
+          </nav>
           <span id="status" class="status">Загрузка...</span>
           <a class="api-link" href="/docs" target="_blank">API</a>
           <button id="reset-progress-button" class="secondary compact" type="button">Начать сначала</button>
@@ -40,12 +47,16 @@
               <h2 id="dialogue-title">Подключение к преподавателю...</h2>
               <p id="dialogue-subtitle" class="muted">Диалог продолжится с текущей темы.</p>
             </div>
+            <button id="theory-chat-button" class="secondary compact" type="button">Показать теорию в чате</button>
             <button id="save-progress-button" class="secondary compact" type="button">Сохранить прогресс</button>
             <button id="finish-topic-button" class="test-action compact" type="button" title="Тестовый переход без выполнения упражнений">Закончить тему (тест)</button>
           </div>
           <div id="chat-messages" class="chat-messages"></div>
           <form id="chat-form" class="chat-form">
             <textarea id="chat-input" rows="3" placeholder="Напиши преподавателю..." required></textarea>
+            <div class="slovak-keyboard" data-keyboard>
+              <span class="keyboard-label">Словацкие буквы</span>
+            </div>
             <div class="chat-actions">
               <span class="muted">Можно отвечать по-русски или по-словацки</span>
               <button type="submit">Отправить</button>
@@ -61,32 +72,38 @@
             <div id="theory" class="theory"></div>
           </section>
 
-          <section class="card compact-card">
+          <section class="card compact-card context-section exercises-section" data-context-section="exercises">
             <div class="panel-heading"><h2>Упражнения</h2><span class="muted">по теме</span></div>
             <div id="exercises" class="exercise-list"></div>
             <form id="answer-form" class="answer-form">
               <textarea id="answer" rows="2" placeholder="Если хочешь проверить ответ отдельно..." required></textarea>
+              <div class="slovak-keyboard" data-keyboard>
+                <span class="keyboard-label">Словацкие буквы</span>
+              </div>
               <button type="submit">Проверить</button>
             </form>
             <div id="feedback" class="feedback hidden"></div>
           </section>
 
-          <section class="card compact-card">
+          <section class="card compact-card context-section summary-section" data-context-section="summary">
             <div class="panel-heading"><h2>Сводка</h2><span class="muted">по курсу</span></div>
             <div id="progress" class="metrics"></div>
             <div id="mistakes" class="mistake-list"></div>
           </section>
 
-          <section class="card compact-card">
+          <section class="card compact-card context-section vocabulary-section" data-context-section="vocabulary">
             <div class="panel-heading"><h2>Слова</h2><span class="muted">повторение</span></div>
             <div id="vocabulary" class="vocabulary-list"></div>
           </section>
 
-          <section class="card compact-card">
+          <section class="card compact-card context-section diary-section" data-context-section="diary">
             <div class="panel-heading"><h2>AI-дневник</h2><span class="muted">запись дня</span></div>
             <div id="diary-prompt" class="diary-prompt"></div>
             <form id="diary-form" class="diary-form">
               <textarea id="diary-answer" rows="5" placeholder="Напиши несколько предложений по-словацки..." required></textarea>
+              <div class="slovak-keyboard" data-keyboard>
+                <span class="keyboard-label">Словацкие буквы</span>
+              </div>
               <button type="submit">Проверить запись</button>
             </form>
             <div id="diary-feedback" class="diary-feedback hidden"></div>
@@ -94,13 +111,13 @@
             <div id="diary-history" class="diary-history"></div>
           </section>
 
-          <section class="card compact-card">
+          <section class="card compact-card context-section homework-section" data-context-section="homework">
             <div class="panel-heading"><h2>Домашнее задание</h2><span class="muted">проверка AI</span></div>
             <div id="homework" class="homework-list"></div>
           </section>
         </aside>
       </div>
     </main>
-    <script src="/ui/app.js?v=8"></script>
+    <script src="/ui/app.js?v=15"></script>
   </body>
 </html>

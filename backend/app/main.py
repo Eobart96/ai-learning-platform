@@ -208,6 +208,10 @@ class DialogueMessageRequest(BaseModel):
     message: str
 
 
+class DialogueLessonSelectionRequest(BaseModel):
+    lesson_id: int
+
+
 class DialogueMessageView(BaseModel):
     role: str
     content: str
@@ -991,6 +995,35 @@ def create_dialogue_session(db: Session = Depends(get_db)) -> DialogueSessionRes
     )
 
 
+@app.post(
+    "/api/v1/dialogue/sessions/{session_id}/select-lesson",
+    response_model=DialogueSessionResponse,
+)
+def select_dialogue_lesson(
+    session_id: int,
+    request: DialogueLessonSelectionRequest,
+    db: Session = Depends(get_db),
+) -> DialogueSessionResponse:
+    session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
+    if session is None:
+        raise HTTPException(status_code=404, detail="Dialogue session not found")
+    lesson = db.scalar(select(Lesson).where(Lesson.id == request.lesson_id))
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    session.current_lesson_id = lesson.id
+    session.current_phase = "theory"
+    session.status = "active"
+    db.commit()
+    db.refresh(session)
+    return DialogueSessionResponse(
+        session_id=session.id,
+        current_lesson_id=session.current_lesson_id,
+        current_lesson_title=lesson.title,
+        current_phase=session.current_phase,
+        status=session.status,
+    )
+
+
 @app.get("/api/v1/dialogue/sessions/{session_id}", response_model=DialogueHistoryResponse)
 def get_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> DialogueHistoryResponse:
     session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
@@ -1221,7 +1254,8 @@ def send_dialogue_message(
                 select(Exercise).where(Exercise.lesson_id == current_lesson.id).order_by(Exercise.id)
             ).all()
             exercise_state = "\n".join(
-                f"{index}. {exercise.question}"
+                f"{index}. [{exercise.exercise_type}] {exercise.question}"
+                + (f" Инструкция: {exercise.instruction}" if exercise.instruction else "")
                 for index, exercise in enumerate(exercises, start=1)
             ) or "Упражнения еще не добавлены."
             theory_mode = session.current_phase == "theory" and not _is_practice_request(request.message)
@@ -1267,7 +1301,8 @@ def send_dialogue_message(
                     "Правила состояния: не перескакивай на другую тему; не повторяй дословно упражнение, "
                     "которое уже есть в истории; отвечай на последнее сообщение ученика; если ученик спрашивает теорию, "
                     "сначала объясни теорию, а не выдавай упражнение; давай только один следующий шаг; после нескольких "
-                    "разных упражнений подведи итог и попроси написать «сохрани прогресс». "
+                    "разных упражнений подведи итог и попроси написать «сохрани прогресс». Используй практические "
+                    "задания и диалоговые сценарии текущей темы по одному: сначала коротко объясни задачу, затем жди ответ. "
                     "Давай только одно упражнение или один следующий шаг. "
                     "Не утверждай, что тема или прогресс завершены без команды сервера."
                 )

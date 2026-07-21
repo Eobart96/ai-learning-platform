@@ -4,6 +4,8 @@ const state = {
   roadmap: [],
   sessionId: Number(localStorage.getItem("learning_session_id")) || null,
   currentLessonId: Number(localStorage.getItem("learning_lesson_id")) || 1,
+  isSending: false,
+  view: localStorage.getItem("learning_view") === "summary" ? "learning" : (localStorage.getItem("learning_view") || "learning"),
 };
 
 const elements = {
@@ -33,9 +35,76 @@ const elements = {
   chatForm: document.querySelector("#chat-form"),
   chatInput: document.querySelector("#chat-input"),
   saveProgressButton: document.querySelector("#save-progress-button"),
+  theoryChatButton: document.querySelector("#theory-chat-button"),
   finishTopicButton: document.querySelector("#finish-topic-button"),
   resetProgressButton: document.querySelector("#reset-progress-button"),
+  shell: document.querySelector(".shell"),
+  viewLinks: [...document.querySelectorAll("[data-view-link]")],
 };
+
+const slovakKeys = ["á", "ä", "č", "ď", "é", "í", "ĺ", "ľ", "ň", "ó", "ô", "ŕ", "š", "ť", "ú", "ý", "ž", "ch", "dz", "dž"];
+
+function insertAtCursor(textarea, value) {
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? start;
+  textarea.value = textarea.value.slice(0, start) + value + textarea.value.slice(end);
+  const cursor = start + value.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function initSlovakKeyboards() {
+  document.querySelectorAll("[data-keyboard]").forEach((keyboard) => {
+    const textarea = keyboard.closest("form")?.querySelector("textarea");
+    if (!textarea) return;
+    let uppercase = false;
+    keyboard.innerHTML = '<span class="keyboard-label">Словацкие буквы</span>';
+    const shiftButton = document.createElement("button");
+    shiftButton.type = "button";
+    shiftButton.className = "keyboard-key keyboard-shift";
+    shiftButton.textContent = "⇧";
+    shiftButton.title = "Переключить регистр";
+    keyboard.appendChild(shiftButton);
+
+    const updateLabels = () => {
+      keyboard.querySelectorAll("[data-key]").forEach((button) => {
+        const key = button.dataset.key;
+        button.textContent = uppercase ? key.toUpperCase() : key;
+      });
+      shiftButton.classList.toggle("active", uppercase);
+    };
+    slovakKeys.forEach((key) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "keyboard-key";
+      button.dataset.key = key;
+      button.addEventListener("click", () => {
+        insertAtCursor(textarea, uppercase ? key.toUpperCase() : key);
+        if (uppercase) { uppercase = false; updateLabels(); }
+      });
+      keyboard.appendChild(button);
+    });
+    shiftButton.addEventListener("click", () => { uppercase = !uppercase; updateLabels(); });
+    updateLabels();
+  });
+}
+
+initSlovakKeyboards();
+
+function initMainNavigation() {
+  const allowedViews = new Set(["learning", "exercises", "vocabulary", "diary", "homework"]);
+  const activate = (view) => {
+    state.view = allowedViews.has(view) ? view : "learning";
+    elements.shell.dataset.view = state.view;
+    elements.viewLinks.forEach((link) => link.classList.toggle("active", link.dataset.viewLink === state.view));
+    localStorage.setItem("learning_view", state.view);
+  };
+  elements.viewLinks.forEach((link) => link.addEventListener("click", () => activate(link.dataset.viewLink)));
+  activate(state.view);
+}
+
+initMainNavigation();
 
 async function request(path, options) {
   const response = await fetch(path, options);
@@ -159,11 +228,20 @@ function renderRoadmap(levels) {
 
 async function selectLesson(lessonId) {
   try {
+    await request("/api/v1/dialogue/sessions/" + state.sessionId + "/select-lesson", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lesson_id: lessonId }),
+    });
     const lesson = await request("/api/v1/lessons/" + lessonId);
     state.currentLessonId = lessonId;
     localStorage.setItem("learning_lesson_id", String(lessonId));
     renderLesson(lesson);
-    setStatus("Открыта тема для повторения.", false);
+    setStatus("Тема переключена. Преподаватель готовит теорию.", false);
+    if (!state.isSending) {
+      elements.chatInput.value = "Покажи подробную теорию по текущей теме";
+      elements.chatForm.requestSubmit();
+    }
   } catch (error) { setStatus(error.message, true); }
 }
 
@@ -292,6 +370,26 @@ function renderChat(messages) {
   elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
 }
 
+function appendChatMessage(role, content, extraClass = "") {
+  const empty = elements.chatMessages.querySelector(".chat-empty");
+  if (empty) empty.remove();
+  const message = document.createElement("div");
+  message.className = "chat-message " + role + (extraClass ? " " + extraClass : "");
+  const contentElement = document.createElement("div");
+  contentElement.className = "message-content";
+  contentElement.innerHTML = role === "user"
+    ? escapeHtml(content).replace(/\n/g, "<br>")
+    : renderMarkdown(content);
+  message.appendChild(contentElement);
+  elements.chatMessages.appendChild(message);
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  return message;
+}
+
+function appendThinkingMessage() {
+  return appendChatMessage("assistant", "Преподаватель думает", "thinking");
+}
+
 async function refresh() {
   try {
     const [roadmap, lesson, progress, mistakes, vocabulary, homework, diaryPrompt, diarySummary, diaryEntries] = await Promise.all([
@@ -396,19 +494,44 @@ elements.diaryForm.addEventListener("submit", async (event) => {
 
 elements.chatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (state.isSending) return;
   const message = elements.chatInput.value.trim();
   if (!message) return;
   const button = elements.chatForm.querySelector("button");
+  state.isSending = true;
   button.disabled = true;
+  elements.chatInput.disabled = true;
+  elements.chatInput.value = "";
+  appendChatMessage("user", message);
+  const thinkingMessage = appendThinkingMessage();
+  setStatus("Преподаватель думает…", false);
   try {
     const result = await sendChatMessage(message);
-    elements.chatInput.value = "";
     const history = await request("/api/v1/dialogue/sessions/" + state.sessionId);
     renderChat(history.messages);
     await refresh();
     if (result.progress_saved) setStatus("Прогресс сохранен. Открыта следующая тема.", false);
   } catch (error) { setStatus(error.message, true); }
-  finally { button.disabled = false; }
+  finally {
+    if (thinkingMessage.isConnected) thinkingMessage.remove();
+    state.isSending = false;
+    button.disabled = false;
+    elements.chatInput.disabled = false;
+    elements.chatInput.focus();
+  }
+});
+
+elements.chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    if (!state.isSending) elements.chatForm.requestSubmit();
+  }
+});
+
+elements.theoryChatButton.addEventListener("click", () => {
+  if (state.isSending) return;
+  elements.chatInput.value = "Покажи подробную теорию по текущей теме";
+  elements.chatForm.requestSubmit();
 });
 
 elements.saveProgressButton.addEventListener("click", () => {
