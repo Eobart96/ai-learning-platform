@@ -90,10 +90,42 @@ uvicorn app.main:app --reload
 После запуска доступны:
 
 - `GET http://127.0.0.1:8000/health` — проверка работоспособности;
+- `http://127.0.0.1:8000/ui/` — тестовый frontend;
 - `GET http://127.0.0.1:8000/api/v1/courses` — загруженные курсы;
+- `GET http://127.0.0.1:8000/api/v1/lessons/1` — конкретный урок;
+- `POST http://127.0.0.1:8000/api/v1/lessons/1/answer` — ответ ученика;
+- `POST http://127.0.0.1:8000/api/v1/lessons/1/complete` — завершение урока;
+- `GET http://127.0.0.1:8000/api/v1/progress` — общий прогресс;
+- `GET http://127.0.0.1:8000/api/v1/progress/mistakes` — повторяющиеся ошибки;
+- `POST http://127.0.0.1:8000/api/v1/homework/generate` — создать домашнее задание;
+- `GET http://127.0.0.1:8000/api/v1/homework` — список домашних заданий;
+- `POST http://127.0.0.1:8000/api/v1/dialogue/sessions` — начать учебный диалог;
+- `GET http://127.0.0.1:8000/api/v1/dialogue/sessions/{id}` — восстановить диалог;
+- `POST http://127.0.0.1:8000/api/v1/dialogue/sessions/{id}/messages` — продолжить диалог;
+- `POST http://127.0.0.1:8000/api/v1/tutor/message` — сообщение AI-преподавателю;
 - `http://127.0.0.1:8000/docs` — интерактивная документация API.
 
 SQLite-база создается автоматически в `backend/data/app.db`. Путь к базе и YAML-курсу можно изменить переменными `DATABASE_URL` и `COURSE_PATH`.
+
+### Режимы AI-преподавателя
+
+По умолчанию используется `TUTOR_PROVIDER=codex`. Backend запускает локальный
+`codex.cmd` через авторизацию Codex/ChatGPT-подписки в read-only режиме.
+Перед этим один раз выполни в PowerShell:
+
+```powershell
+cmd.exe /d /s /c "codex.cmd login"
+```
+
+Для API-режима в `.env` укажи:
+
+```text
+TUTOR_PROVIDER=openai
+OPENAI_API_KEY=your_api_key
+```
+
+Оба режима используют один и тот же профиль Sergej, roadmap и методику из
+`course-content/slovak-a1/learning/`.
 
 Проверка тестов:
 
@@ -136,3 +168,8 @@ pytest
 ```
 
 > Для раннего MVP регистрация не требуется. Сначала реализуется полный учебный цикл для одного локального пользователя.
+
+## Запуск в Windows
+
+Запусти файл start_backend.cmd в корне проекта. Он автоматически использует
+локальное виртуальное окружение backend/.venv, если оно существует.

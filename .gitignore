@@ -5,6 +5,8 @@
 # Database
 *.db
 *.sqlite3
+*.bak
+backend/data/
 
 # Python
 __pycache__/

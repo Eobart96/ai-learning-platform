@@ -30,8 +30,14 @@ def load_course(db: Session, course_path: Path) -> Course:
         db.add(course)
         db.flush()
 
-    if not course.modules:
-        for module_data in payload.get("modules", []):
+    for module_data in payload.get("modules", []):
+        module = db.scalar(
+            select(Module).where(
+                Module.course_id == course.id,
+                Module.slug == module_data["slug"],
+            )
+        )
+        if module is None:
             module = Module(
                 course_id=course.id,
                 slug=module_data["slug"],
@@ -40,26 +46,40 @@ def load_course(db: Session, course_path: Path) -> Course:
             )
             db.add(module)
             db.flush()
-            for lesson_data in module_data.get("lessons", []):
-                lesson = Lesson(
-                    module_id=module.id,
-                    slug=lesson_data["slug"],
-                    title=lesson_data["title"],
-                    order_number=lesson_data["order"],
-                    theory="\n".join(lesson_data.get("theory", [])) or None,
+        else:
+            module.title = module_data["title"]
+            module.order_number = module_data["order"]
+        for lesson_data in module_data.get("lessons", []):
+            lesson = db.scalar(
+                select(Lesson).where(
+                    Lesson.module_id == module.id,
+                    Lesson.slug == lesson_data["slug"],
                 )
-                db.add(lesson)
-                db.flush()
-                for exercise_data in lesson_data.get("exercises", []):
-                    db.add(
-                        Exercise(
-                            lesson_id=lesson.id,
-                            exercise_type=exercise_data["type"],
-                            question=exercise_data.get("question", ""),
-                            instruction=exercise_data.get("instruction"),
-                            correct_answer=exercise_data.get("answer"),
-                        )
+            )
+            if lesson is not None:
+                lesson.title = lesson_data["title"]
+                lesson.order_number = lesson_data["order"]
+                lesson.theory = "\n".join(lesson_data.get("theory", [])) or None
+                continue
+            lesson = Lesson(
+                module_id=module.id,
+                slug=lesson_data["slug"],
+                title=lesson_data["title"],
+                order_number=lesson_data["order"],
+                theory="\n".join(lesson_data.get("theory", [])) or None,
+            )
+            db.add(lesson)
+            db.flush()
+            for exercise_data in lesson_data.get("exercises", []):
+                db.add(
+                    Exercise(
+                        lesson_id=lesson.id,
+                        exercise_type=exercise_data["type"],
+                        question=exercise_data.get("question", ""),
+                        instruction=exercise_data.get("instruction"),
+                        correct_answer=exercise_data.get("answer"),
                     )
+                )
 
     db.commit()
     db.refresh(course)

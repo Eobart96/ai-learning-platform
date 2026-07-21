@@ -1,9 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Course(Base):
@@ -66,7 +70,7 @@ class LessonAttempt(Base):
     lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class UserAnswer(Base):
@@ -79,7 +83,7 @@ class UserAnswer(Base):
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class Mistake(Base):
@@ -92,4 +96,82 @@ class Mistake(Base):
     corrected_answer: Mapped[str] = mapped_column(Text)
     explanation: Mapped[str] = mapped_column(Text)
     mistake_count: Mapped[int] = mapped_column(Integer, default=1)
-    last_mistake_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_mistake_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class VocabularyItem(Base):
+    __tablename__ = "vocabulary_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
+    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
+    word: Mapped[str] = mapped_column(String(120))
+    translation: Mapped[str] = mapped_column(String(255))
+    example: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_count: Mapped[int] = mapped_column(Integer, default=0)
+    interval_days: Mapped[int] = mapped_column(Integer, default=0)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_review_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    __table_args__ = (UniqueConstraint("course_id", "word"),)
+
+
+class Homework(Base):
+    __tablename__ = "homework"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
+    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="pending")
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submitted_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class DiaryEntry(Base):
+    __tablename__ = "diary_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
+    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    original_text: Mapped[str] = mapped_column(Text)
+    corrected_text: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str] = mapped_column(Text)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+
+class LearningSession(Base):
+    __tablename__ = "learning_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    current_lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
+    current_phase: Mapped[str] = mapped_column(String(30), default="theory")
+    status: Mapped[str] = mapped_column(String(30), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+    messages: Mapped[list["DialogueMessage"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="DialogueMessage.id",
+    )
+
+
+class DialogueMessage(Base):
+    __tablename__ = "dialogue_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("learning_sessions.id"), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    session: Mapped[LearningSession] = relationship(back_populates="messages")

@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -29,3 +29,28 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def ensure_sqlite_schema(database_engine) -> None:
+    """Add nullable MVP columns to an existing local SQLite database."""
+    if database_engine.dialect.name != "sqlite":
+        return
+    columns = {column["name"] for column in inspect(database_engine).get_columns("homework")}
+    with database_engine.begin() as connection:
+        if "submitted_answer" not in columns:
+            connection.execute(text("ALTER TABLE homework ADD COLUMN submitted_answer TEXT"))
+        if "submitted_at" not in columns:
+            connection.execute(text("ALTER TABLE homework ADD COLUMN submitted_at DATETIME"))
+        vocabulary_columns = {column["name"] for column in inspect(database_engine).get_columns("vocabulary_items")}
+        if "mistake_id" not in vocabulary_columns:
+            connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN mistake_id INTEGER"))
+        if "interval_days" not in vocabulary_columns:
+            connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN interval_days INTEGER DEFAULT 0"))
+        if "next_review_at" not in vocabulary_columns:
+            connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN next_review_at DATETIME"))
+        diary_columns = {column["name"] for column in inspect(database_engine).get_columns("diary_entries")}
+        if "mistake_id" not in diary_columns:
+            connection.execute(text("ALTER TABLE diary_entries ADD COLUMN mistake_id INTEGER"))
+        session_columns = {column["name"] for column in inspect(database_engine).get_columns("learning_sessions")}
+        if "current_phase" not in session_columns:
+            connection.execute(text("ALTER TABLE learning_sessions ADD COLUMN current_phase TEXT DEFAULT 'theory'"))
