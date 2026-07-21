@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.*
+
+# Database
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Logs
+*.log
+logs/
+
+# AI temporary files
+.ai/tmp/
+.ai/chat_history.md
+.ai/token_usage.json

@@ -1,0 +1,25 @@
+course:
+  slug: slovak-a1
+  title: Slovak A1
+  subject: language
+  language: sk
+  teaching_language: ru
+  level: A1
+
+modules:
+  - slug: introductions
+    title: Знакомство
+    order: 1
+    lessons:
+      - slug: greetings
+        title: Приветствия
+        order: 1
+        objectives:
+          - Поздороваться
+          - Представиться
+        exercises:
+          - type: translation
+            question: "Переведи: Добрый день"
+            answer: "Dobrý deň"
+          - type: dialogue
+            instruction: "Поздоровайся и назови свое имя"
