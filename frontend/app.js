@@ -5,7 +5,9 @@ const state = {
   sessionId: Number(localStorage.getItem("learning_session_id")) || null,
   currentLessonId: Number(localStorage.getItem("learning_lesson_id")) || 1,
   isSending: false,
+  clearDialogueArmed: false,
   view: localStorage.getItem("learning_view") === "summary" ? "learning" : (localStorage.getItem("learning_view") || "learning"),
+  vocabularyFilter: localStorage.getItem("learning_vocabulary_filter") || "",
 };
 
 const elements = {
@@ -15,12 +17,22 @@ const elements = {
   lessonSlug: document.querySelector("#lesson-slug"),
   theory: document.querySelector("#theory"),
   exercises: document.querySelector("#exercises"),
+  exerciseTopicSelect: document.querySelector("#exercise-topic-select"),
   answerForm: document.querySelector("#answer-form"),
   answer: document.querySelector("#answer"),
   feedback: document.querySelector("#feedback"),
+  moduleTestSection: document.querySelector("#module-test-section"),
+  moduleTestSubtitle: document.querySelector("#module-test-subtitle"),
+  moduleTestsList: document.querySelector("#module-tests-list"),
+  moduleTest: document.querySelector("#module-test"),
   progress: document.querySelector("#progress"),
   mistakes: document.querySelector("#mistakes"),
+  dialogueHistory: document.querySelector("#dialogue-history"),
+  expandedDialogueHistory: document.querySelector("#expanded-dialogue-history"),
+  topicVocabulary: document.querySelector("#topic-vocabulary"),
   vocabulary: document.querySelector("#vocabulary"),
+  vocabularyTags: document.querySelector("#vocabulary-tags"),
+  downloadVocabularyButton: document.querySelector("#download-vocabulary-button"),
   diaryPrompt: document.querySelector("#diary-prompt"),
   diaryForm: document.querySelector("#diary-form"),
   diaryAnswer: document.querySelector("#diary-answer"),
@@ -34,10 +46,13 @@ const elements = {
   chatMessages: document.querySelector("#chat-messages"),
   chatForm: document.querySelector("#chat-form"),
   chatInput: document.querySelector("#chat-input"),
-  saveProgressButton: document.querySelector("#save-progress-button"),
-  theoryChatButton: document.querySelector("#theory-chat-button"),
+  chatSubmitButton: document.querySelector("#chat-submit-button"),
+  clearDialogueButton: document.querySelector("#clear-dialogue-button"),
+  expandDialogueButton: document.querySelector("#expand-dialogue-button"),
   finishTopicButton: document.querySelector("#finish-topic-button"),
   resetProgressButton: document.querySelector("#reset-progress-button"),
+  newDialogueButton: document.querySelector("#new-dialogue-button"),
+  expandedNewDialogueButton: document.querySelector("#expanded-new-dialogue-button"),
   shell: document.querySelector(".shell"),
   viewLinks: [...document.querySelectorAll("[data-view-link]")],
 };
@@ -56,8 +71,10 @@ function insertAtCursor(textarea, value) {
 
 function initSlovakKeyboards() {
   document.querySelectorAll("[data-keyboard]").forEach((keyboard) => {
-    const textarea = keyboard.closest("form")?.querySelector("textarea");
+    if (keyboard.dataset.keyboardReady === "true") return;
+    const textarea = keyboard.closest("fieldset")?.querySelector("textarea") || keyboard.closest("form")?.querySelector("textarea");
     if (!textarea) return;
+    keyboard.dataset.keyboardReady = "true";
     let uppercase = false;
     keyboard.innerHTML = '<span class="keyboard-label">Словацкие буквы</span>';
     const shiftButton = document.createElement("button");
@@ -93,7 +110,7 @@ function initSlovakKeyboards() {
 initSlovakKeyboards();
 
 function initMainNavigation() {
-  const allowedViews = new Set(["learning", "exercises", "vocabulary", "diary", "homework"]);
+  const allowedViews = new Set(["learning", "exercises", "tests", "vocabulary", "diary", "homework"]);
   const activate = (view) => {
     state.view = allowedViews.has(view) ? view : "learning";
     elements.shell.dataset.view = state.view;
@@ -194,6 +211,7 @@ function renderMarkdown(value) {
 
 function renderRoadmap(levels) {
   state.roadmap = levels;
+  renderExerciseTopicSelector(levels);
   if (!levels.length) {
     elements.roadmap.innerHTML = '<p class="empty">Роадмап пока пуст.</p>';
     return;
@@ -214,8 +232,13 @@ function renderRoadmap(levels) {
         escapeHtml(lesson.title) + (lesson.can_repeat ? '<small class="repeat-label"> · повторить</small>' : '') +
         '</button></div>';
       }).join("");
+      const testItem = module.test_available ? '<div class="roadmap-module-test ' + (module.test_passed ? "passed" : "ready") + '">' +
+        '<span class="roadmap-test-dot">' + (module.test_passed ? "✓" : "★") + '</span>' +
+        '<button type="button" data-module-test-id="' + module.id + '">' +
+        (module.test_passed ? "Итоговый тест · " + module.test_score + "/100" : "Итоговый тест модуля") +
+        '</button></div>' : "";
       return '<div class="roadmap-module-title">' + escapeHtml(module.title) +
-        '</div><div class="roadmap-list">' + lessons + '</div>';
+        '</div><div class="roadmap-list">' + lessons + testItem + '</div>';
     }).join("");
     return '<section class="roadmap-level"><div class="roadmap-level-heading"><strong>' +
       escapeHtml(level.slug) + '</strong><span>текущий уровень</span></div><p class="level-hint">' +
@@ -223,6 +246,51 @@ function renderRoadmap(levels) {
   }).join("");
   elements.roadmap.querySelectorAll("button[data-lesson-id]").forEach((button) => {
     button.addEventListener("click", () => selectLesson(Number(button.dataset.lessonId)));
+  });
+  elements.roadmap.querySelectorAll("button[data-module-test-id]").forEach((button) => {
+    button.addEventListener("click", () => openModuleTest(Number(button.dataset.moduleTestId)));
+  });
+}
+
+function renderExerciseTopicSelector(levels) {
+  const lessons = levels.flatMap((level) => level.modules.flatMap((module) => module.lessons))
+    .filter((lesson) => lesson.status !== "upcoming");
+  elements.exerciseTopicSelect.innerHTML = lessons.map((lesson) =>
+    '<option value="' + lesson.id + '"' + (lesson.id === state.currentLessonId ? " selected" : "") + '>' + escapeHtml(lesson.title) + '</option>'
+  ).join("");
+}
+
+async function selectExerciseTopic(lessonId) {
+  try {
+    const lesson = await request("/api/v1/lessons/" + lessonId);
+    state.currentLessonId = lessonId;
+    localStorage.setItem("learning_lesson_id", String(lessonId));
+    renderLesson(lesson);
+    document.querySelector('[data-view-link="exercises"]').click();
+    setStatus("Открыта тема: " + lesson.title, false);
+  } catch (error) { setStatus(error.message, true); }
+}
+
+async function openModuleTest(moduleId) {
+  try {
+    const test = await request("/api/v1/modules/" + moduleId + "/final-test");
+    renderModuleTest(test);
+    document.querySelector('[data-view-link="tests"]').click();
+    elements.moduleTestSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) { setStatus(error.message, true); }
+}
+
+function renderTestsOverview(levels) {
+  const modules = levels.flatMap((level) => level.modules);
+  elements.moduleTestsList.innerHTML = modules.map((module) => {
+    const completeText = module.test_available
+      ? (module.test_passed ? "Пройден · " + module.test_score + "/100" : "Готов к прохождению")
+      : "Пройдено " + module.lessons.filter((lesson) => lesson.status === "completed").length + " из " + module.lessons.length + " тем";
+    return '<article class="module-test-card ' + (module.test_available ? "" : "locked") + '"><div><strong>' + escapeHtml(module.title) + '</strong><small>' + completeText + '</small></div>' +
+      (module.test_available ? '<button type="button" data-tests-module-id="' + module.id + '">' + (module.test_passed ? "Пересдать" : "Начать тест") + '</button>' : "") + '</article>';
+  }).join("");
+  elements.moduleTestsList.querySelectorAll("[data-tests-module-id]").forEach((button) => {
+    button.addEventListener("click", () => openModuleTest(Number(button.dataset.testsModuleId)));
   });
 }
 
@@ -257,7 +325,10 @@ function renderLesson(lesson) {
     card.className = "exercise" + (index === 0 ? " active" : "");
     card.innerHTML = '<div class="exercise-number">УПРАЖНЕНИЕ ' + (index + 1) + "</div>" +
       "<p>" + escapeHtml(exercise.question) + "</p>" +
-      (exercise.instruction ? '<p class="muted">' + escapeHtml(exercise.instruction) + "</p>" : "");
+      (exercise.instruction ? '<p class="muted">' + escapeHtml(exercise.instruction) + "</p>" : "") +
+      (exercise.submitted_answer ? '<div class="exercise-answer ' + (exercise.is_completed ? "correct" : "pending") + '"><strong>' +
+        (exercise.is_completed ? "Пройдено" : "Последний ответ") + '</strong><span>' + escapeHtml(exercise.submitted_answer) +
+        (exercise.score !== null && exercise.score !== undefined ? " · " + exercise.score + "/100" : "") + "</span></div>" : "");
     card.addEventListener("click", () => {
       state.selectedExercise = exercise;
       document.querySelectorAll(".exercise").forEach((item) => item.classList.remove("active"));
@@ -287,21 +358,103 @@ function renderMistakes(mistakes) {
     : '<p class="empty">Ошибок для повторения пока нет.</p>';
 }
 
+function formatDialogueDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function renderDialogueHistoryContainer(container, sessions) {
+  if (!container) return;
+  if (!sessions.length) {
+    container.innerHTML = '<p class="empty">Диалогов пока нет.</p>';
+    return;
+  }
+  container.innerHTML = sessions.map((session) => {
+    const active = session.session_id === state.sessionId ? " active" : "";
+    const title = session.current_lesson_title || "Курс завершён";
+    const count = session.message_count === 1 ? "1 сообщение" : session.message_count + " сообщений";
+    return '<div class="dialogue-history-item' + active + '">' +
+      '<button type="button" class="dialogue-history-open" data-dialogue-session-id="' + session.session_id + '">' +
+      '<strong>' + escapeHtml(title) + '</strong>' +
+      '<small>' + escapeHtml(formatDialogueDate(session.updated_at)) + " · " + count + "</small></button>" +
+      '<button type="button" class="dialogue-history-delete" data-delete-dialogue-id="' + session.session_id + '" aria-label="Удалить диалог">×</button></div>';
+  }).join("");
+  container.querySelectorAll("[data-dialogue-session-id]").forEach((button) => {
+    button.addEventListener("click", () => openDialogueSession(Number(button.dataset.dialogueSessionId)));
+  });
+  container.querySelectorAll("[data-delete-dialogue-id]").forEach((button) => {
+    button.addEventListener("click", () => deleteDialogueSession(Number(button.dataset.deleteDialogueId)));
+  });
+}
+
+function renderDialogueHistory(sessions) {
+  renderDialogueHistoryContainer(elements.dialogueHistory, sessions);
+  renderDialogueHistoryContainer(elements.expandedDialogueHistory, sessions);
+}
+
 function renderVocabulary(items) {
-  elements.vocabulary.innerHTML = items.length
-    ? items.slice(0, 5).map((item) => '<article class="vocabulary-item"><div><strong>' +
+  const completedLessonIds = new Set(state.roadmap.flatMap((level) => level.modules.flatMap((module) =>
+    module.lessons.filter((lesson) => lesson.status === "completed").map((lesson) => lesson.id)
+  )));
+  const topicNames = [...new Set(items.filter((item) => completedLessonIds.has(item.lesson_id)).map((item) => item.lesson_title).filter(Boolean))];
+  if (state.vocabularyFilter && !topicNames.includes(state.vocabularyFilter)) state.vocabularyFilter = "";
+  const filteredItems = state.vocabularyFilter
+    ? items.filter((item) => item.lesson_title === state.vocabularyFilter)
+    : items;
+  elements.vocabularyTags.innerHTML = ["", ...topicNames].map((topic) =>
+    '<button type="button" class="vocabulary-tag' + (state.vocabularyFilter === topic ? " active" : "") + '" data-vocabulary-filter="' + escapeHtml(topic) + '">' +
+    escapeHtml(topic || "Все") + '</button>'
+  ).join("");
+  elements.vocabularyTags.querySelectorAll("[data-vocabulary-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.vocabularyFilter = button.dataset.vocabularyFilter;
+      localStorage.setItem("learning_vocabulary_filter", state.vocabularyFilter);
+      renderVocabulary(items);
+    });
+  });
+  elements.vocabulary.innerHTML = filteredItems.length
+    ? filteredItems.map((item) => '<div class="vocabulary-line">' + escapeHtml(item.translation) + ' — ' + escapeHtml(item.word) + '</div>').join("")
+    : '<p class="empty">Каталог слов пока пуст.</p>';
+  elements.downloadVocabularyButton.onclick = () => {
+    const text = filteredItems.map((item) => item.translation + " — " + item.word).join("\r\n");
+    const blob = new Blob(["\ufeff" + text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = (state.vocabularyFilter || "vse-slova") + ".txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+}
+
+function renderTopicVocabulary(items) {
+  elements.topicVocabulary.innerHTML = items.length
+    ? items.map((item) => '<article class="vocabulary-item topic-vocabulary-item"><div><strong>' +
       escapeHtml(item.word) + '</strong><span>' + escapeHtml(item.translation) + '</span></div>' +
       (item.example ? '<p>' + escapeHtml(item.example) + '</p>' : '') +
-      '<button type="button" data-vocabulary-id="' + item.id + '">Повторил (' + item.review_count + ')</button></article>').join("")
-    : '<p class="empty">Сегодня нет слов для повторения.</p>';
-  elements.vocabulary.querySelectorAll("button[data-vocabulary-id]").forEach((button) => {
+      '<div class="topic-vocabulary-actions"><button type="button" data-save-vocabulary-id="' + item.id + '">Добавить в слова</button>' +
+      '<button type="button" data-copy-vocabulary-id="' + item.id + '">Скопировать для Anki</button></div></article>').join("")
+    : '<p class="empty">Новых слов по этой теме пока нет.</p>';
+  elements.topicVocabulary.querySelectorAll("button[data-save-vocabulary-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
-        await request("/api/v1/progress/vocabulary/" + button.dataset.vocabularyId + "/review", { method: "POST" });
-        setStatus("Слово отмечено как повторенное.", false);
+        await request("/api/v1/progress/vocabulary/" + button.dataset.saveVocabularyId + "/save", { method: "POST" });
+        setStatus("Слово добавлено в раздел «Слова». ", false);
         await refresh();
       } catch (error) { setStatus(error.message, true); button.disabled = false; }
+    });
+  });
+  elements.topicVocabulary.querySelectorAll("button[data-copy-vocabulary-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const item = items.find((entry) => String(entry.id) === button.dataset.copyVocabularyId);
+      if (!item) return;
+      try {
+        await navigator.clipboard.writeText([item.word, item.translation, item.example || ""].join("\t"));
+        setStatus("Слово скопировано в формате для Anki.", false);
+      } catch (_) { setStatus("Не удалось скопировать слово.", true); }
     });
   });
 }
@@ -362,6 +515,52 @@ function showFeedback(assessment) {
     "</strong><p>" + escapeHtml(assessment.explanation) + "</p>";
 }
 
+function renderModuleTest(test, showForm = false) {
+  if (!test || !test.questions.length) {
+    elements.moduleTestSection.classList.add("hidden");
+    return;
+  }
+  elements.moduleTestSection.classList.remove("hidden");
+  elements.moduleTestSubtitle.textContent = test.available ? "Все темы модуля · " + test.questions.length + " заданий · минимум " + test.passing_score + "/100" :
+    "Пройдено " + test.completed_lessons + " из " + test.total_lessons + " тем";
+  if (!test.available) {
+    elements.moduleTest.innerHTML = '<p class="muted">Заверши все темы модуля, чтобы открыть итоговый тест.</p>';
+    return;
+  }
+  const result = test.score === null || test.score === undefined ? "" :
+    '<div class="module-test-result ' + (test.passed ? "passed" : "failed") + '"><strong>' +
+    (test.passed ? "Тест пройден" : "Тест нужно повторить") + '</strong><span>' + test.score + '/100</span></div>';
+  const history = test.history?.length ? '<details class="test-history"><summary>История попыток · ' + test.history.length + '</summary><div class="test-history-content">' + test.history.map((attempt) =>
+    '<details class="test-history-item"><summary><strong>' + (attempt.passed ? "Пройден" : "Не пройден") + '</strong><span>' + attempt.score + '/100</span></summary>' +
+    (attempt.details_available ? (attempt.mistakes.length ? '<div class="test-mistakes"><b>Ошибки:</b>' + attempt.mistakes.map((mistake) => '<p><strong>' + escapeHtml(mistake.question) + '</strong><br>Твой ответ: ' + escapeHtml(mistake.submitted_answer || "—") + '<br>Правильно: ' + escapeHtml(mistake.expected_answer) + '</p>').join("") + '</div>' : '<small>Ошибок нет.</small>') : '<small>Детализация ошибок для этой старой попытки недоступна.</small>') + '</details>'
+  ).join("") + '</div></details>' : "";
+  if (!showForm) {
+    elements.moduleTest.innerHTML = result + history + '<button type="button" class="module-test-open">' + (test.score === null || test.score === undefined ? "Сдать тест" : "Пересдать") + '</button>';
+    elements.moduleTest.querySelector(".module-test-open").addEventListener("click", () => renderModuleTest(test, true));
+    return;
+  }
+  elements.moduleTest.innerHTML = result + history + '<form id="module-test-form" class="module-test-form">' +
+    test.questions.map((question, index) => '<fieldset><legend>' + (index + 1) + ". " + escapeHtml(question.question) + '</legend>' +
+      (question.type === "choice" ? question.options.map((option) => '<label class="test-option"><input type="radio" name="' + question.id + '" value="' + escapeHtml(option) + '" required> ' + escapeHtml(option) + '</label>').join("") :
+        '<textarea class="test-input" name="' + question.id + '" rows="2" required placeholder="Твой ответ"></textarea><div class="slovak-keyboard" data-keyboard><span class="keyboard-label">Словацкие буквы</span></div>') + '</fieldset>').join("") +
+    '<button type="submit">' + (test.passed ? "Пройти ещё раз" : "Проверить тест") + '</button></form>';
+  initSlovakKeyboards();
+  const form = elements.moduleTest.querySelector("#module-test-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const answers = Object.fromEntries(new FormData(form).entries());
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      const result = await request("/api/v1/modules/" + test.module_id + "/final-test/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers }),
+      });
+      renderModuleTest(result, false);
+      setStatus("Итоговый тест проверен: " + result.score + "/100.", !result.passed);
+    } catch (error) { setStatus(error.message, true); button.disabled = false; }
+  });
+}
+
 function renderChat(messages) {
   elements.chatMessages.innerHTML = messages.length ? messages.map((message) =>
     '<div class="chat-message ' + (message.role === "user" ? "user" : "assistant") + '">' +
@@ -392,24 +591,32 @@ function appendThinkingMessage() {
 
 async function refresh() {
   try {
-    const [roadmap, lesson, progress, mistakes, vocabulary, homework, diaryPrompt, diarySummary, diaryEntries] = await Promise.all([
+    const [roadmap, lesson, topicVocabulary, progress, mistakes, vocabulary, homework, diaryPrompt, diarySummary, diaryEntries, dialogueHistory] = await Promise.all([
       request("/api/v1/roadmap/levels"),
       request("/api/v1/lessons/" + state.currentLessonId),
+      request("/api/v1/lessons/" + state.currentLessonId + "/vocabulary"),
       request("/api/v1/progress"),
       request("/api/v1/progress/mistakes"),
-      request("/api/v1/progress/vocabulary/due"),
+      request("/api/v1/progress/vocabulary"),
       request("/api/v1/homework"),
       request("/api/v1/diary/today"),
       request("/api/v1/diary/weekly-summary"),
       request("/api/v1/diary/entries"),
+      request("/api/v1/dialogue/sessions"),
     ]);
     renderRoadmap(roadmap);
+    renderTestsOverview(roadmap);
     renderLesson(lesson);
+    const currentModule = roadmap.flatMap((level) => level.modules).find((module) => module.lessons.some((item) => item.id === state.currentLessonId));
+    const moduleTest = currentModule ? await request("/api/v1/modules/" + currentModule.id + "/final-test") : null;
+    renderModuleTest(moduleTest);
+    renderTopicVocabulary(topicVocabulary);
     renderProgress(progress);
     renderMistakes(mistakes);
     renderVocabulary(vocabulary);
     renderHomework(homework);
     renderDiary(diaryPrompt, diarySummary, diaryEntries);
+    renderDialogueHistory(dialogueHistory);
     setStatus("Синхронизировано с базой данных.", false);
   } catch (error) { setStatus(error.message, true); }
 }
@@ -442,6 +649,55 @@ async function loadDialogue() {
     }
   }
   await refresh();
+}
+
+async function openDialogueSession(sessionId) {
+  if (state.isSending || !sessionId) return;
+  try {
+    const dialogue = await request("/api/v1/dialogue/sessions/" + sessionId);
+    state.sessionId = sessionId;
+    localStorage.setItem("learning_session_id", String(sessionId));
+    if (dialogue.current_lesson_id) {
+      state.currentLessonId = dialogue.current_lesson_id;
+      localStorage.setItem("learning_lesson_id", String(state.currentLessonId));
+    }
+    elements.dialogueTitle.textContent = dialogue.current_lesson_title || "Курс завершён";
+    elements.dialogueSubtitle.textContent = dialogue.current_lesson_title
+      ? "Текущая тема из серверного roadmap" : "Можно повторить пройденные темы";
+    renderChat(dialogue.messages || []);
+    await refresh();
+    setStatus("Диалог открыт.", false);
+  } catch (error) { setStatus(error.message, true); }
+}
+
+async function deleteDialogueSession(sessionId) {
+  if (state.isSending || !sessionId) return;
+  if (!window.confirm("Удалить историю этого диалога? Прогресс курса сохранится.")) return;
+  try {
+    await request("/api/v1/dialogue/sessions/" + sessionId, { method: "DELETE" });
+    if (sessionId === state.sessionId) {
+      state.sessionId = null;
+      localStorage.removeItem("learning_session_id");
+      await loadDialogue();
+    } else {
+      await refresh();
+      setStatus("История диалога удалена.", false);
+    }
+  } catch (error) { setStatus(error.message, true); }
+}
+
+async function createNewDialogue(button = elements.newDialogueButton) {
+  if (state.isSending) return;
+  button.disabled = true;
+  try {
+    const dialogue = await request("/api/v1/dialogue/sessions", { method: "POST" });
+    await openDialogueSession(dialogue.session_id);
+    if (dialogue.current_lesson_id && !state.isSending) {
+      elements.chatInput.value = "Начнем урок";
+      elements.chatForm.requestSubmit();
+    }
+  } catch (error) { setStatus(error.message, true); }
+  finally { button.disabled = false; }
 }
 
 async function sendChatMessage(message) {
@@ -497,7 +753,7 @@ elements.chatForm.addEventListener("submit", async (event) => {
   if (state.isSending) return;
   const message = elements.chatInput.value.trim();
   if (!message) return;
-  const button = elements.chatForm.querySelector("button");
+  const button = elements.chatSubmitButton;
   state.isSending = true;
   button.disabled = true;
   elements.chatInput.disabled = true;
@@ -511,7 +767,13 @@ elements.chatForm.addEventListener("submit", async (event) => {
     renderChat(history.messages);
     await refresh();
     if (result.progress_saved) setStatus("Прогресс сохранен. Открыта следующая тема.", false);
-  } catch (error) { setStatus(error.message, true); }
+  } catch (error) {
+    setStatus(error.message, true);
+    try {
+      const history = await request("/api/v1/dialogue/sessions/" + state.sessionId);
+      renderChat(history.messages || []);
+    } catch (_) { /* Keep the local error visible if the history cannot be refreshed. */ }
+  }
   finally {
     if (thinkingMessage.isConnected) thinkingMessage.remove();
     state.isSending = false;
@@ -528,16 +790,47 @@ elements.chatInput.addEventListener("keydown", (event) => {
   }
 });
 
-elements.theoryChatButton.addEventListener("click", () => {
-  if (state.isSending) return;
-  elements.chatInput.value = "Покажи подробную теорию по текущей теме";
-  elements.chatForm.requestSubmit();
+document.querySelectorAll("[data-quick-message]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.isSending) return;
+    elements.chatInput.value = button.dataset.quickMessage;
+    elements.chatForm.requestSubmit();
+  });
 });
 
-elements.saveProgressButton.addEventListener("click", () => {
-  elements.chatInput.value = "сохрани прогресс";
-  elements.chatInput.focus();
+elements.newDialogueButton.addEventListener("click", () => createNewDialogue(elements.newDialogueButton));
+elements.expandedNewDialogueButton.addEventListener("click", () => createNewDialogue(elements.expandedNewDialogueButton));
+
+elements.expandDialogueButton.addEventListener("click", () => {
+  const expanded = elements.shell.classList.toggle("dialogue-expanded");
+  elements.expandDialogueButton.textContent = expanded ? "Свернуть" : "Развернуть";
+  elements.expandDialogueButton.setAttribute("aria-pressed", String(expanded));
+  if (expanded) elements.chatInput.focus();
 });
+
+elements.clearDialogueButton.addEventListener("click", async () => {
+  if (state.isSending || !state.sessionId) return;
+  if (!state.clearDialogueArmed) {
+    state.clearDialogueArmed = true;
+    elements.clearDialogueButton.textContent = "Подтвердить очистку";
+    setStatus("Нажми кнопку еще раз, чтобы очистить только сообщения диалога.", false);
+    window.setTimeout(() => {
+      state.clearDialogueArmed = false;
+      elements.clearDialogueButton.textContent = "Очистить диалог";
+    }, 5000);
+    return;
+  }
+  state.clearDialogueArmed = false;
+  elements.clearDialogueButton.textContent = "Очистить диалог";
+  elements.clearDialogueButton.disabled = true;
+  try {
+    const dialogue = await request("/api/v1/dialogue/sessions/" + state.sessionId + "/clear", { method: "POST" });
+    renderChat(dialogue.messages || []);
+    setStatus("Диалог очищен. Можно начать объяснение заново.", false);
+  } catch (error) { setStatus(error.message, true); }
+  finally { elements.clearDialogueButton.disabled = false; }
+});
+
 elements.finishTopicButton.addEventListener("click", async () => {
   if (!state.sessionId) {
     setStatus("Учебная сессия еще не создана.", true);
@@ -555,6 +848,7 @@ elements.finishTopicButton.addEventListener("click", async () => {
   finally { elements.finishTopicButton.disabled = false; }
 });
 elements.refreshButton.addEventListener("click", () => refresh());
+elements.exerciseTopicSelect.addEventListener("change", () => selectExerciseTopic(Number(elements.exerciseTopicSelect.value)));
 elements.resetProgressButton.addEventListener("click", async () => {
   if (!window.confirm("Очистить историю уроков, ошибки, слова, дневник и домашние задания? Курс и roadmap сохранятся.")) return;
   elements.resetProgressButton.disabled = true;

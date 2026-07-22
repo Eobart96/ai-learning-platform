@@ -58,6 +58,15 @@ class PracticeTutorProvider(FakeTutorProvider):
         return super().respond(context)
 
 
+class HistoryCaptureProvider(FakeTutorProvider):
+    def __init__(self):
+        self.prompts = []
+
+    def respond(self, context: TutorContext) -> str:
+        self.prompts.append(context.prompt)
+        return super().respond(context)
+
+
 def test_tutor_message_uses_learning_context(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
 
@@ -186,21 +195,29 @@ def test_new_words_are_saved_and_can_be_reviewed(client):
         "/api/v1/lessons/1/answer",
         json={"exercise_id": 1, "answer": "Dobrý deň"},
     )
+    topic_vocabulary = client.get("/api/v1/lessons/1/vocabulary")
+    vocabulary_before_save = client.get("/api/v1/progress/vocabulary")
+    topic_word_id = topic_vocabulary.json()[0]["id"]
+    saved = client.post(f"/api/v1/progress/vocabulary/{topic_word_id}/save")
     vocabulary = client.get("/api/v1/progress/vocabulary")
-    next_word = client.get("/api/v1/progress/vocabulary/next")
-    reviewed = client.post("/api/v1/progress/vocabulary/1/review")
+    reviewed = client.post(f"/api/v1/progress/vocabulary/{saved.json()['id']}/review")
     due_after = client.get("/api/v1/progress/vocabulary/due")
 
     assert answer.status_code == 200
     assert answer.json()["mistake_id"] == 1
+    assert topic_vocabulary.status_code == 200
+    assert topic_vocabulary.json()[0]["id"] == saved.json()["id"]
+    before_item = next(item for item in vocabulary_before_save.json() if item["id"] == topic_word_id)
+    assert before_item["is_saved"] is False
+    assert saved.json()["is_saved"] is True
     assert vocabulary.status_code == 200
-    assert vocabulary.json()[0]["word"] == "fľaša"
-    assert vocabulary.json()[0]["mistake_id"] == 1
-    assert next_word.json()["translation"] == "бутылка"
+    saved_item = next(item for item in vocabulary.json() if item["id"] == topic_word_id)
+    assert saved_item["is_saved"] is True
+    assert saved_item["mistake_id"] == 1
     assert reviewed.json()["review_count"] == 1
     assert reviewed.json()["interval_days"] == 1
     assert reviewed.json()["is_due"] is False
-    assert due_after.json() == []
+    assert any(item["id"] != topic_word_id for item in due_after.json())
 
 
 def test_diary_entry_is_checked_saved_and_included_in_weekly_summary(client):
@@ -258,6 +275,82 @@ def test_dialogue_session_persists_history_and_progress_command(client):
     assert resumed.json()["current_lesson_title"] == "Представление себя"
 
 
+def test_dialogue_practice_context_contains_current_message(client):
+    provider = HistoryCaptureProvider()
+    app.dependency_overrides[get_tutor_provider] = lambda: provider
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+    client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/select-lesson",
+        json={"lesson_id": 3},
+    )
+    client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "готов к упражнению"},
+    )
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "CURRENT-LATEST-ANSWER"},
+    )
+
+    assert response.status_code == 200
+    assert "CURRENT-LATEST-ANSWER" in provider.prompts[-1]
+
+
+def test_dialogue_answer_is_saved_on_matching_exercise(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+    client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/select-lesson",
+        json={"lesson_id": 2},
+    )
+
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "Volám sa Sergej."},
+    )
+    lesson = client.get("/api/v1/lessons/2")
+
+    assert response.status_code == 200
+    assert "Правильно" in response.json()["response"]
+    assert lesson.status_code == 200
+    exercise = lesson.json()["exercises"][0]
+    assert exercise["submitted_answer"] == "Volám sa Sergej."
+    assert exercise["is_completed"] is True
+    assert exercise["score"] == 100
+
+
+def test_dialogue_session_list_returns_recent_sessions_with_message_counts(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    first = client.post("/api/v1/dialogue/sessions")
+    second = client.post("/api/v1/dialogue/sessions")
+    client.post(
+        f"/api/v1/dialogue/sessions/{first.json()['session_id']}/messages",
+        json={"message": "Покажи теорию"},
+    )
+
+    response = client.get("/api/v1/dialogue/sessions")
+    sessions = response.json()
+    by_id = {item["session_id"]: item for item in sessions}
+
+    assert response.status_code == 200
+    assert first.json()["session_id"] in by_id
+    assert second.json()["session_id"] in by_id
+    assert by_id[first.json()["session_id"]]["message_count"] == 2
+
+
+def test_dialogue_session_can_be_deleted_without_resetting_course(client):
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+
+    response = client.delete(f"/api/v1/dialogue/sessions/{session_id}")
+
+    assert response.status_code == 200
+    assert response.json() == {"session_id": session_id, "deleted": True}
+    assert client.get(f"/api/v1/dialogue/sessions/{session_id}").status_code == 404
+
+
 def test_theory_request_returns_current_lesson_theory_without_repeating_exercise(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
     session = client.post("/api/v1/dialogue/sessions")
@@ -272,6 +365,26 @@ def test_theory_request_returns_current_lesson_theory_without_repeating_exercise
     assert response.json()["current_phase"] == "theory"
     assert "Текущая тема:" in response.json()["response"]
     assert "готов к упражнению" in response.json()["response"]
+
+
+def test_clear_dialogue_removes_messages_but_keeps_lesson_and_progress(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "А где теория?"},
+    )
+    assert response.status_code == 200
+
+    cleared = client.post(f"/api/v1/dialogue/sessions/{session_id}/clear")
+    history = client.get(f"/api/v1/dialogue/sessions/{session_id}")
+
+    assert cleared.status_code == 200
+    assert cleared.json()["messages"] == []
+    assert cleared.json()["current_lesson_id"] == session.json()["current_lesson_id"]
+    assert cleared.json()["current_phase"] == "theory"
+    assert history.json()["messages"] == []
 
 
 def test_practice_prompt_contains_dialogue_scenario(client):

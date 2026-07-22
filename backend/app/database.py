@@ -48,6 +48,8 @@ def ensure_sqlite_schema(database_engine) -> None:
             connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN interval_days INTEGER DEFAULT 0"))
         if "next_review_at" not in vocabulary_columns:
             connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN next_review_at DATETIME"))
+        if "is_saved" not in vocabulary_columns:
+            connection.execute(text("ALTER TABLE vocabulary_items ADD COLUMN is_saved BOOLEAN NOT NULL DEFAULT 0"))
         diary_columns = {column["name"] for column in inspect(database_engine).get_columns("diary_entries")}
         if "mistake_id" not in diary_columns:
             connection.execute(text("ALTER TABLE diary_entries ADD COLUMN mistake_id INTEGER"))

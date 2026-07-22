@@ -73,6 +73,30 @@ class LessonAttempt(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
+class ModuleTestAttempt(Base):
+    __tablename__ = "module_test_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), index=True)
+    score: Mapped[int] = mapped_column(Integer)
+    passed: Mapped[bool] = mapped_column(Boolean, default=False)
+    answers_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class ModuleTestAnswer(Base):
+    __tablename__ = "module_test_answers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("module_test_attempts.id"), index=True)
+    question_id: Mapped[str] = mapped_column(String(100), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    expected_answer: Mapped[str] = mapped_column(Text)
+    submitted_answer: Mapped[str] = mapped_column(Text)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
 class UserAnswer(Base):
     __tablename__ = "user_answers"
 
@@ -109,6 +133,7 @@ class VocabularyItem(Base):
     word: Mapped[str] = mapped_column(String(120))
     translation: Mapped[str] = mapped_column(String(255))
     example: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     review_count: Mapped[int] = mapped_column(Integer, default=0)
     interval_days: Mapped[int] = mapped_column(Integer, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

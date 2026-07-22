@@ -2,12 +2,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+import re
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -24,6 +25,8 @@ from app.models import (
     LessonAttempt,
     Mistake,
     Module,
+    ModuleTestAnswer,
+    ModuleTestAttempt,
     UserAnswer,
     VocabularyItem,
 )
@@ -48,6 +51,12 @@ async def lifespan(_: FastAPI):
     ensure_sqlite_schema(engine)
     with Session(engine) as db:
         load_course(db, settings_path)
+        _promote_initial_topic_vocabulary(db)
+        _seed_initial_topic_vocabulary(db)
+        _seed_completed_topic_vocabulary(db)
+        _seed_completed_lesson_content_vocabulary(db)
+        _seed_historical_dialogue_vocabulary(db)
+        _deduplicate_vocabulary(db)
     yield
 
 
@@ -69,6 +78,9 @@ class ExerciseResponse(BaseModel):
     type: str
     question: str
     instruction: str | None
+    submitted_answer: str | None = None
+    is_completed: bool = False
+    score: int | None = None
 
 
 class LessonResponse(BaseModel):
@@ -124,6 +136,7 @@ class NextMistakeResponse(BaseModel):
 
 class VocabularyResponse(BaseModel):
     id: int
+    lesson_id: int | None = None
     mistake_id: int | None
     word: str
     translation: str
@@ -132,6 +145,8 @@ class VocabularyResponse(BaseModel):
     interval_days: int
     next_review_at: datetime | None
     is_due: bool
+    is_saved: bool
+    lesson_title: str | None = None
 
 
 class VocabularyReviewResponse(VocabularyResponse):
@@ -204,6 +219,12 @@ class DialogueSessionResponse(BaseModel):
     status: str
 
 
+class DialogueSessionListItem(DialogueSessionResponse):
+    message_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
 class DialogueMessageRequest(BaseModel):
     message: str
 
@@ -219,6 +240,11 @@ class DialogueMessageView(BaseModel):
 
 class DialogueHistoryResponse(DialogueSessionResponse):
     messages: list[DialogueMessageView]
+
+
+class DialogueSessionDeleteResponse(BaseModel):
+    session_id: int
+    deleted: bool
 
 
 class DialogueMessageResponse(DialogueSessionResponse):
@@ -253,6 +279,9 @@ class RoadmapModuleResponse(BaseModel):
     title: str
     order_number: int
     lessons: list[RoadmapLessonResponse]
+    test_available: bool = False
+    test_passed: bool = False
+    test_score: int | None = None
 
 
 class RoadmapLevelResponse(BaseModel):
@@ -260,6 +289,34 @@ class RoadmapLevelResponse(BaseModel):
     title: str
     status: str
     modules: list[RoadmapModuleResponse]
+
+
+class ModuleTestQuestionResponse(BaseModel):
+    id: str
+    type: str
+    question: str
+    options: list[str] = Field(default_factory=list)
+
+
+class ModuleTestResponse(BaseModel):
+    module_id: int
+    module_title: str
+    available: bool
+    completed_lessons: int
+    total_lessons: int
+    passed: bool
+    score: int | None = None
+    passing_score: int = 70
+    questions: list[ModuleTestQuestionResponse]
+    history: list[dict] = Field(default_factory=list)
+
+
+class ModuleTestSubmitRequest(BaseModel):
+    answers: dict[str, str]
+
+
+class ModuleTestSubmitResponse(ModuleTestResponse):
+    correct_answers: dict[str, str]
 
 
 def get_tutor_provider() -> TutorProvider:
@@ -307,6 +364,15 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
     exercises = db.scalars(
         select(Exercise).where(Exercise.lesson_id == lesson_id).order_by(Exercise.id)
     ).all()
+    answers = db.scalars(
+        select(UserAnswer)
+        .join(Exercise, UserAnswer.exercise_id == Exercise.id)
+        .where(Exercise.lesson_id == lesson_id)
+        .order_by(UserAnswer.created_at.desc(), UserAnswer.id.desc())
+    ).all()
+    latest_answers: dict[int, UserAnswer] = {}
+    for answer in answers:
+        latest_answers.setdefault(answer.exercise_id, answer)
     return LessonResponse(
         id=lesson.id,
         slug=lesson.slug,
@@ -318,10 +384,26 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
                 type=exercise.exercise_type,
                 question=exercise.question,
                 instruction=exercise.instruction,
+                submitted_answer=(latest_answers[exercise.id].user_answer if exercise.id in latest_answers else None),
+                is_completed=bool(latest_answers.get(exercise.id) and latest_answers[exercise.id].is_correct),
+                score=(latest_answers[exercise.id].score if exercise.id in latest_answers else None),
             )
             for exercise in exercises
         ],
     )
+
+
+@app.get("/api/v1/lessons/{lesson_id}/vocabulary", response_model=list[VocabularyResponse])
+def get_lesson_vocabulary(lesson_id: int, db: Session = Depends(get_db)) -> list[VocabularyResponse]:
+    lesson = db.scalar(select(Lesson).where(Lesson.id == lesson_id))
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    items = db.scalars(
+        select(VocabularyItem)
+        .where(VocabularyItem.lesson_id == lesson_id, VocabularyItem.is_saved.is_(False))
+        .order_by(VocabularyItem.created_at.desc(), VocabularyItem.id.desc())
+    ).all()
+    return [_vocabulary_response(item, lesson.title) for item in items]
 
 
 @app.post("/api/v1/lessons/{lesson_id}/answer", response_model=LessonAnswerResponse)
@@ -470,8 +552,15 @@ def get_roadmap(db: Session = Depends(get_db)) -> list[RoadmapModuleResponse]:
     lessons = _ordered_lessons(db)
     current_lesson = _first_incomplete_lesson(db, lessons)
     modules = db.scalars(select(Module).order_by(Module.order_number, Module.id)).all()
-    return [
-        RoadmapModuleResponse(
+    response = []
+    for module in modules:
+        module_lessons = [lesson for lesson in lessons if lesson.module_id == module.id]
+        latest_test = db.scalar(
+            select(ModuleTestAttempt)
+            .where(ModuleTestAttempt.module_id == module.id)
+            .order_by(ModuleTestAttempt.id.desc())
+        )
+        response.append(RoadmapModuleResponse(
             id=module.id,
             title=module.title,
             order_number=module.order_number,
@@ -490,12 +579,13 @@ def get_roadmap(db: Session = Depends(get_db)) -> list[RoadmapModuleResponse]:
                     ),
                     can_repeat=lesson.id in completed_ids,
                 )
-                for lesson in lessons
-                if lesson.module_id == module.id
+                for lesson in module_lessons
             ],
-        )
-        for module in modules
-    ]
+            test_available=bool(module_lessons) and all(lesson.id in completed_ids for lesson in module_lessons),
+            test_passed=bool(latest_test and latest_test.passed),
+            test_score=latest_test.score if latest_test else None,
+        ))
+    return response
 
 
 @app.get("/api/v1/roadmap/levels", response_model=list[RoadmapLevelResponse])
@@ -516,6 +606,196 @@ def get_roadmap_levels(db: Session = Depends(get_db)) -> list[RoadmapLevelRespon
         )
         for slug, title in level_definitions
     ]
+
+
+MODULE_TEST_PASSING_SCORE = 70
+
+_MODULE_TESTS = {
+    "introductions": [
+        {"id": "greeting", "type": "text", "question": "Переведи: Добрый день!", "answer": "Dobrý deň"},
+        {"id": "morning", "type": "text", "question": "Переведи: Доброе утро!", "answer": "Dobré ráno"},
+        {"id": "goodbye", "type": "text", "question": "Переведи: До свидания!", "answer": "Dovidenia"},
+        {"id": "how-are-you", "type": "choice", "question": "Выбери неформальный вопрос: «Как ты?»", "options": ["Ako sa máš?", "Ako sa máte?", "Kde bývaš?"], "answer": "Ako sa máš?"},
+        {"id": "name", "type": "text", "question": "Переведи: Меня зовут Сергей.", "answer": "Volám sa Sergej"},
+        {"id": "country", "type": "text", "question": "Переведи: Я из России.", "answer": "Som z Ruska"},
+        {"id": "city", "type": "text", "question": "Переведи: Я живу в Санкт-Петербурге.", "answer": "Bývam v Petrohrade"},
+        {"id": "nice-to-meet", "type": "text", "question": "Переведи: Приятно познакомиться.", "answer": "Teší ma"},
+        {"id": "numbers", "type": "text", "question": "Переведи: У меня пять книг.", "answer": "Mám päť kníh"},
+        {"id": "four-coffees", "type": "text", "question": "Переведи: У нас четыре кофе.", "answer": "Máme štyri kávy"},
+        {"id": "count", "type": "choice", "question": "Как спросить «Сколько?»", "options": ["Koľko?", "Kto?", "Kedy?"], "answer": "Koľko?"},
+        {"id": "five-apples", "type": "text", "question": "Переведи: пять яблок.", "answer": "päť jabĺk"},
+        {"id": "day", "type": "text", "question": "Переведи: Сегодня понедельник.", "answer": "Dnes je pondelok"},
+        {"id": "friday", "type": "text", "question": "Переведи: Сегодня пятница.", "answer": "Dnes je piatok"},
+        {"id": "work-monday", "type": "text", "question": "Переведи: В понедельник я работаю.", "answer": "V pondelok pracujem"},
+        {"id": "month", "type": "choice", "question": "Как будет «июль»?", "options": ["júl", "jún", "január"], "answer": "júl"},
+        {"id": "pronoun", "type": "choice", "question": "Выбери: «мы учимся»", "options": ["My sa učíme", "Oni pracujú", "Ja som doma"], "answer": "My sa učíme"},
+        {"id": "they-work", "type": "text", "question": "Переведи: Они работают.", "answer": "Oni pracujú"},
+        {"id": "i-home", "type": "choice", "question": "Выбери: «Я дома»", "options": ["Som doma", "Si doma", "Sú doma"], "answer": "Som doma"},
+        {"id": "we-friends", "type": "text", "question": "Переведи: Мы друзья.", "answer": "Sme priatelia"},
+        {"id": "byt", "type": "choice", "question": "Выбери правильный вариант: «Ты дома?»", "options": ["Si doma?", "Ste doma?", "Je doma?"], "answer": "Si doma?"},
+        {"id": "they-not", "type": "text", "question": "Переведи: Они не из Братиславы.", "answer": "Nie sú z Bratislavy"},
+        {"id": "who", "type": "choice", "question": "Как спросить «Кто вы?»", "options": ["Kto ste?", "Kde ste?", "Odkiaľ ste?"], "answer": "Kto ste?"},
+        {"id": "question", "type": "text", "question": "Как спросить: «Как тебя зовут?»", "answer": "Ako sa voláš?"},
+        {"id": "introduction", "type": "text", "question": "Составь фразу: «Меня зовут Сергей. Я из России.»", "answer": "Volám sa Sergej. Som z Ruska."},
+    ],
+}
+
+
+def _module_test_payload(db: Session, module: Module) -> tuple[dict, list[dict], set[int]]:
+    lessons = db.scalars(select(Lesson).where(Lesson.module_id == module.id)).all()
+    completed_ids = {
+        lesson_id for lesson_id in db.scalars(
+            select(LessonAttempt.lesson_id).where(LessonAttempt.completed.is_(True))
+        ).all()
+    }
+    definition = _MODULE_TESTS.get(module.slug)
+    if definition is None:
+        definition = []
+        for lesson in sorted(lessons, key=lambda item: item.order_number):
+            for exercise in lesson.exercises:
+                if exercise.exercise_type == "translation" and exercise.correct_answer:
+                    definition.append({
+                        "id": f"lesson-{lesson.id}-exercise-{exercise.id}",
+                        "type": "text",
+                        "question": exercise.question,
+                        "answer": exercise.correct_answer,
+                    })
+                    if len(definition) >= 10:
+                        break
+            if len(definition) >= 10:
+                break
+    return (
+        {
+            "module_id": module.id,
+            "module_title": module.title,
+            "available": bool(lessons) and all(lesson.id in completed_ids for lesson in lessons),
+            "completed_lessons": sum(lesson.id in completed_ids for lesson in lessons),
+            "total_lessons": len(lessons),
+        },
+        definition,
+        completed_ids,
+    )
+
+
+@app.get("/api/v1/modules/{module_id}/final-test", response_model=ModuleTestResponse)
+def get_module_final_test(module_id: int, db: Session = Depends(get_db)) -> ModuleTestResponse:
+    module = db.scalar(select(Module).where(Module.id == module_id))
+    if module is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    payload, definition, _ = _module_test_payload(db, module)
+    latest = db.scalar(
+        select(ModuleTestAttempt).where(ModuleTestAttempt.module_id == module.id).order_by(ModuleTestAttempt.id.desc())
+    )
+    return ModuleTestResponse(
+        **payload,
+        passed=bool(latest and latest.passed),
+        score=latest.score if latest else None,
+        passing_score=MODULE_TEST_PASSING_SCORE,
+        questions=[ModuleTestQuestionResponse(**{key: item[key] for key in ("id", "type", "question", "options") if key in item}) for item in definition],
+        history=_module_test_history(db, module.id),
+    )
+
+
+def _normalize_test_answer(value: str) -> str:
+    return " ".join(value.casefold().replace("ё", "е").split()).strip(" .,!?:;\"'«»")
+
+
+def _module_test_history(db: Session, module_id: int) -> list[dict]:
+    module = db.scalar(select(Module).where(Module.id == module_id))
+    definition = _module_test_payload(db, module)[1] if module is not None else []
+    attempts = db.scalars(
+        select(ModuleTestAttempt)
+        .where(ModuleTestAttempt.module_id == module_id)
+        .order_by(ModuleTestAttempt.id.desc())
+    ).all()
+    history = []
+    for attempt in attempts:
+        answers = db.scalars(
+            select(ModuleTestAnswer)
+            .where(ModuleTestAnswer.attempt_id == attempt.id)
+            .order_by(ModuleTestAnswer.id)
+        ).all()
+        stored_answers = {}
+        if not answers and attempt.answers_json:
+            try:
+                stored_answers = json.loads(attempt.answers_json)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                stored_answers = {}
+        mistakes = [
+            {
+                "question_id": item["id"],
+                "question": item["question"],
+                "submitted_answer": stored_answers.get(item["id"], ""),
+                "expected_answer": item["answer"],
+            }
+            for item in definition
+            if stored_answers and _normalize_test_answer(stored_answers.get(item["id"], "")) != _normalize_test_answer(item["answer"])
+        ] if stored_answers else [
+            {
+                "question_id": answer.question_id,
+                "question": answer.question,
+                "submitted_answer": answer.submitted_answer,
+                "expected_answer": answer.expected_answer,
+            }
+            for answer in answers if not answer.is_correct
+        ]
+        history.append({
+            "id": attempt.id,
+            "score": attempt.score,
+            "passed": attempt.passed,
+            "created_at": attempt.created_at,
+            "details_available": bool(answers or stored_answers),
+            "mistakes": mistakes,
+        })
+    return history
+
+
+@app.post("/api/v1/modules/{module_id}/final-test/submit", response_model=ModuleTestSubmitResponse)
+def submit_module_final_test(
+    module_id: int,
+    request: ModuleTestSubmitRequest,
+    db: Session = Depends(get_db),
+) -> ModuleTestSubmitResponse:
+    module = db.scalar(select(Module).where(Module.id == module_id))
+    if module is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    payload, definition, _ = _module_test_payload(db, module)
+    if not payload["available"]:
+        raise HTTPException(status_code=409, detail="Сначала заверши все темы модуля")
+    correct_answers = {item["id"]: item["answer"] for item in definition}
+    correct_count = sum(
+        _normalize_test_answer(request.answers.get(item["id"], "")) == _normalize_test_answer(item["answer"])
+        for item in definition
+    )
+    score = round(correct_count / len(definition) * 100) if definition else 0
+    attempt = ModuleTestAttempt(
+        module_id=module.id,
+        score=score,
+        passed=score >= MODULE_TEST_PASSING_SCORE,
+        answers_json=json.dumps(request.answers, ensure_ascii=False),
+    )
+    db.add(attempt)
+    db.flush()
+    for item in definition:
+        submitted_answer = request.answers.get(item["id"], "")
+        db.add(ModuleTestAnswer(
+            attempt_id=attempt.id,
+            question_id=item["id"],
+            question=item["question"],
+            expected_answer=item["answer"],
+            submitted_answer=submitted_answer,
+            is_correct=_normalize_test_answer(submitted_answer) == _normalize_test_answer(item["answer"]),
+        ))
+    db.commit()
+    return ModuleTestSubmitResponse(
+        **payload,
+        passed=attempt.passed,
+        score=score,
+        passing_score=MODULE_TEST_PASSING_SCORE,
+        questions=[ModuleTestQuestionResponse(**{key: item[key] for key in ("id", "type", "question", "options") if key in item}) for item in definition],
+        correct_answers=correct_answers,
+        history=_module_test_history(db, module.id),
+    )
 
 
 @app.get("/api/v1/progress/mistakes", response_model=list[MistakeResponse])
@@ -554,19 +834,22 @@ def get_next_mistake(db: Session = Depends(get_db)) -> NextMistakeResponse | Non
 @app.get("/api/v1/progress/vocabulary", response_model=list[VocabularyResponse])
 def get_vocabulary(db: Session = Depends(get_db)) -> list[VocabularyResponse]:
     items = db.scalars(
-        select(VocabularyItem).order_by(VocabularyItem.next_review_at, VocabularyItem.review_count, VocabularyItem.id.desc())
+        select(VocabularyItem)
+        .order_by(VocabularyItem.lesson_id, VocabularyItem.created_at, VocabularyItem.id)
     ).all()
-    return [_vocabulary_response(item) for item in items]
+    return [_vocabulary_response(item, _lesson_title(db, item.lesson_id)) for item in items]
 
 
 @app.get("/api/v1/progress/vocabulary/next", response_model=VocabularyResponse | None)
 def get_next_vocabulary(db: Session = Depends(get_db)) -> VocabularyResponse | None:
     item = db.scalar(
-        select(VocabularyItem).order_by(VocabularyItem.next_review_at, VocabularyItem.review_count, VocabularyItem.id)
+        select(VocabularyItem)
+        .where(VocabularyItem.is_saved.is_(True))
+        .order_by(VocabularyItem.next_review_at, VocabularyItem.review_count, VocabularyItem.id)
     )
     if item is None:
         return None
-    return _vocabulary_response(item)
+    return _vocabulary_response(item, _lesson_title(db, item.lesson_id))
 
 
 @app.get("/api/v1/progress/vocabulary/due", response_model=list[VocabularyResponse])
@@ -574,13 +857,307 @@ def get_due_vocabulary(db: Session = Depends(get_db)) -> list[VocabularyResponse
     now = datetime.now(timezone.utc)
     items = db.scalars(
         select(VocabularyItem)
-        .where((VocabularyItem.next_review_at.is_(None)) | (VocabularyItem.next_review_at <= now))
+        .where(
+            VocabularyItem.is_saved.is_(True),
+            (VocabularyItem.next_review_at.is_(None)) | (VocabularyItem.next_review_at <= now),
+        )
         .order_by(VocabularyItem.next_review_at, VocabularyItem.review_count, VocabularyItem.id)
     ).all()
-    return [_vocabulary_response(item) for item in items]
+    return [_vocabulary_response(item, _lesson_title(db, item.lesson_id)) for item in items]
 
 
-def _vocabulary_response(item: VocabularyItem) -> VocabularyResponse:
+def _promote_initial_topic_vocabulary(db: Session) -> None:
+    initial_lesson_ids = db.scalars(
+        select(Lesson.id)
+        .join(Module, Lesson.module_id == Module.id)
+        .where(Module.slug == "introductions", Lesson.order_number <= 2)
+    ).all()
+    if not initial_lesson_ids:
+        return
+    db.query(VocabularyItem).filter(
+        VocabularyItem.lesson_id.in_(initial_lesson_ids)
+    ).update({VocabularyItem.is_saved: True}, synchronize_session=False)
+    db.commit()
+
+
+_INITIAL_TOPIC_VOCABULARY = {
+    "greetings": [
+        ("Dobrý deň", "Добрый день", "Dobrý deň! Ako sa máte?"),
+        ("Dobré ráno", "Доброе утро", "Dobré ráno!"),
+        ("Dobrý večer", "Добрый вечер", "Dobrý večer!"),
+        ("Ahoj", "Привет / пока", "Ahoj! Ako sa máš?"),
+        ("Čau", "Привет / пока", "Čau, zajtra!"),
+        ("Dovidenia", "До свидания", "Dovidenia zajtra!"),
+        ("Ako sa máte?", "Как вы?", "Dobrý deň, ako sa máte?"),
+        ("Ako sa máš?", "Как ты?", "Ahoj, ako sa máš?"),
+    ],
+    "introductions": [
+        ("Volám sa", "Меня зовут", "Volám sa Sergej."),
+        ("Som z Ruska", "Я из России", "Som z Ruska."),
+        ("Bývam v Petrohrade", "Я живу в Санкт-Петербурге", "Bývam v Petrohrade."),
+        ("Teší ma", "Приятно познакомиться", "Teší ma."),
+        ("Ako sa voláš?", "Как тебя зовут?", "Ahoj, ako sa voláš?"),
+        ("Odkiaľ si?", "Откуда ты?", "Odkiaľ si?"),
+        ("Kde bývaš?", "Где ты живёшь?", "Kde bývaš?"),
+    ],
+}
+
+_COMPLETED_TOPIC_VOCABULARY = {
+    "numbers": [
+        ("nula", "ноль", "Mám nula eur."),
+        ("jeden", "один", "Jeden dom."),
+        ("dva", "два", "Mám dva chleby."),
+        ("dve", "две", "Mám dve kávy."),
+        ("tri", "три", "Mám tri knihy."),
+        ("štyri", "четыре", "Mám štyri rožky."),
+        ("päť", "пять", "Mám päť jabĺk."),
+        ("šesť", "шесть", "Mám šesť kníh."),
+        ("sedem", "семь", "Sedem dní."),
+        ("osem", "восемь", "Osem kníh."),
+        ("deväť", "девять", "Deväť jabĺk."),
+        ("desať", "десять", "Desať eur."),
+        ("Koľko?", "Сколько?", "Koľko máš kníh?"),
+        ("Mám tri knihy", "У меня три книги", "Mám tri knihy."),
+        ("Je nás päť", "Нас пятеро", "Je nás päť."),
+        ("päť jabĺk", "пять яблок", "Mám päť jabĺk."),
+    ],
+    "days-and-months": [
+        ("pondelok", "понедельник", "Dnes je pondelok."),
+        ("utorok", "вторник", "V utorok pracujem."),
+        ("streda", "среда", "V stredu pracujem."),
+        ("štvrtok", "четверг", "Vo štvrtok pracujem."),
+        ("piatok", "пятница", "V piatok oddychujem."),
+        ("sobota", "суббота", "V sobotu oddychujem."),
+        ("nedeľa", "воскресенье", "V nedeľu oddychujem."),
+        ("január", "январь", "V januári je zima."),
+        ("február", "февраль", "Vo februári je zima."),
+        ("marec", "март", "V marci začína jar."),
+        ("apríl", "апрель", "V apríli je jar."),
+        ("máj", "май", "V máji je teplo."),
+        ("jún", "июнь", "V júni je leto."),
+        ("júl", "июль", "V júli je leto."),
+        ("august", "август", "V auguste cestujem."),
+        ("september", "сентябрь", "V septembri začína škola."),
+        ("október", "октябрь", "V októbri je jeseň."),
+        ("november", "ноябрь", "V novembri je chladno."),
+        ("december", "декабрь", "V decembri sú sviatky."),
+        ("Dnes je pondelok", "Сегодня понедельник", "Dnes je pondelok."),
+    ],
+}
+
+
+def _extract_explicit_vocabulary(text: str) -> list[VocabularyWord]:
+    """Extract Slovak–Russian pairs written in tutor text as a dash pair."""
+    if not text:
+        return []
+    pairs: list[VocabularyWord] = []
+    text = text.replace("**", "").replace("__", "").replace("`", "")
+    pattern = re.compile(
+        r"([A-Za-zÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž][A-Za-zÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž0-9 .,'?!()/-]{0,100}?)\s*[—–]\s*[«\"]?([^\n»\"]{1,180}?)[»\"]?(?=\.|\n|$)"
+    )
+    for match in pattern.finditer(text):
+        word = _clean_vocabulary_field(match.group(1))
+        translation = _clean_vocabulary_field(match.group(2))
+        if not word or not translation:
+            continue
+        if not re.search(r"[A-Za-zÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽáäčďéíĺľňóôŕšťúýž]", word):
+            continue
+        if not re.search(r"[А-Яа-яЁё]", translation):
+            continue
+        if len(word.split()) > 12:
+            continue
+        pairs.append(VocabularyWord(word=word, translation=translation, example=None))
+    return pairs
+
+
+def _clean_vocabulary_field(value: str) -> str:
+    value = re.sub(r"\*\*|__|`", "", value)
+    value = re.sub(r"^\s*(?:\d+[.)]\s*|[•✅]\s*)", "", value)
+    return value.strip(" \t.,;:!?\"'«»")
+
+
+def _save_content_vocabulary(db: Session, lesson: Lesson, words: list[VocabularyWord]) -> None:
+    if words:
+        _save_vocabulary(db, lesson.module.course_id, lesson.id, words)
+
+
+def _vocabulary_key(word: str) -> str:
+    normalized = " ".join(word.casefold().split())
+    return normalized.strip(" .,;:!?\"'«»()[]{}")
+
+
+def _find_vocabulary_item(db: Session, course_id: int, word: str) -> VocabularyItem | None:
+    key = _vocabulary_key(word)
+    items = db.scalars(
+        select(VocabularyItem).where(VocabularyItem.course_id == course_id)
+    ).all()
+    return next((item for item in items if _vocabulary_key(item.word) == key), None)
+
+
+def _deduplicate_vocabulary(db: Session) -> None:
+    items = db.scalars(
+        select(VocabularyItem).order_by(VocabularyItem.course_id, VocabularyItem.id)
+    ).all()
+    seen: dict[tuple[int, str], VocabularyItem] = {}
+    cleaned: dict[int, tuple[str, str]] = {}
+    delete_ids: set[int] = set()
+    for item in items:
+        word = _clean_vocabulary_field(item.word)
+        translation = _clean_vocabulary_field(item.translation)
+        invalid_word = (
+            not word
+            or bool(re.search(r"[А-Яа-яЁё*]", word))
+            or translation.lower() == "правильно"
+        )
+        invalid_translation = (
+            not translation
+            or "*" in translation
+            or not re.search(r"[А-Яа-яЁё]", translation)
+        )
+        if invalid_word or invalid_translation:
+            delete_ids.add(item.id)
+            continue
+        cleaned[item.id] = (word, translation)
+        key = (item.course_id, _vocabulary_key(word))
+        existing = seen.get(key)
+        if existing is None:
+            seen[key] = item
+            continue
+        existing.is_saved = existing.is_saved or item.is_saved
+        existing.example = existing.example or item.example
+        existing.translation = existing.translation or item.translation
+        existing.lesson_id = existing.lesson_id or item.lesson_id
+        delete_ids.add(item.id)
+    if delete_ids:
+        db.execute(delete(VocabularyItem).where(VocabularyItem.id.in_(delete_ids)))
+        db.flush()
+    for item in seen.values():
+        if item.id in cleaned:
+            item.word, item.translation = cleaned[item.id]
+    db.commit()
+
+
+def _seed_completed_lesson_content_vocabulary(db: Session) -> None:
+    completed_lesson_ids = set(
+        db.scalars(
+            select(LessonAttempt.lesson_id).where(LessonAttempt.completed.is_(True))
+        ).all()
+    )
+    if not completed_lesson_ids:
+        return
+    lessons = db.scalars(select(Lesson).where(Lesson.id.in_(completed_lesson_ids))).all()
+    for lesson in lessons:
+        words = _extract_explicit_vocabulary(lesson.theory or "")
+        for exercise in lesson.exercises:
+            if exercise.correct_answer:
+                question = re.sub(r"^.*?:\s*", "", exercise.question or "")
+                words.append(
+                    VocabularyWord(
+                        word=exercise.correct_answer,
+                        translation=question,
+                        example=exercise.correct_answer,
+                    )
+                )
+        _save_content_vocabulary(db, lesson, words)
+    db.commit()
+
+
+def _seed_historical_dialogue_vocabulary(db: Session) -> None:
+    messages = db.scalars(
+        select(DialogueMessage).where(DialogueMessage.role == "assistant")
+    ).all()
+    for message in messages:
+        session = db.scalar(select(LearningSession).where(LearningSession.id == message.session_id))
+        if session is None or session.current_lesson_id is None:
+            continue
+        lesson = db.scalar(select(Lesson).where(Lesson.id == session.current_lesson_id))
+        if lesson is not None:
+            _save_content_vocabulary(db, lesson, _extract_explicit_vocabulary(message.content))
+    db.commit()
+
+
+def _seed_initial_topic_vocabulary(db: Session) -> None:
+    course = db.scalar(select(Course).where(Course.slug == "slovak-a1"))
+    if course is None:
+        return
+    lessons = db.scalars(
+        select(Lesson).join(Module, Lesson.module_id == Module.id).where(
+            Module.course_id == course.id,
+            Lesson.slug.in_(list(_INITIAL_TOPIC_VOCABULARY)),
+        )
+    ).all()
+    for lesson in lessons:
+        for word, translation, example in _INITIAL_TOPIC_VOCABULARY.get(lesson.slug, []):
+            item = db.scalar(
+                select(VocabularyItem).where(
+                    VocabularyItem.course_id == course.id,
+                    VocabularyItem.word == word,
+                )
+            )
+            if item is None:
+                db.add(
+                    VocabularyItem(
+                        course_id=course.id,
+                        lesson_id=lesson.id,
+                        word=word,
+                        translation=translation,
+                        example=example,
+                        is_saved=True,
+                    )
+                )
+            else:
+                item.lesson_id = lesson.id
+                item.translation = translation
+                item.example = example
+                item.is_saved = True
+    db.commit()
+
+
+def _seed_completed_topic_vocabulary(db: Session) -> None:
+    completed_lesson_ids = set(
+        db.scalars(
+            select(LessonAttempt.lesson_id).where(LessonAttempt.completed.is_(True))
+        ).all()
+    )
+    if not completed_lesson_ids:
+        return
+    lessons = db.scalars(
+        select(Lesson).where(
+            Lesson.id.in_(completed_lesson_ids),
+            Lesson.slug.in_(list(_COMPLETED_TOPIC_VOCABULARY)),
+        )
+    ).all()
+    for lesson in lessons:
+        course_id = db.scalar(select(Module.course_id).where(Module.id == lesson.module_id))
+        if course_id is None:
+            continue
+        for word, translation, example in _COMPLETED_TOPIC_VOCABULARY[lesson.slug]:
+            item = db.scalar(
+                select(VocabularyItem).where(
+                    VocabularyItem.course_id == course_id,
+                    VocabularyItem.word == word,
+                )
+            )
+            if item is None:
+                db.add(
+                    VocabularyItem(
+                        course_id=course_id,
+                        lesson_id=lesson.id,
+                        word=word,
+                        translation=translation,
+                        example=example,
+                        is_saved=True,
+                    )
+                )
+            else:
+                item.lesson_id = lesson.id
+                item.translation = translation
+                item.example = example
+                item.is_saved = True
+    db.commit()
+
+
+def _vocabulary_response(item: VocabularyItem, lesson_title: str | None = None) -> VocabularyResponse:
     now = datetime.now(timezone.utc)
     next_review_at = item.next_review_at
     if next_review_at is not None and next_review_at.tzinfo is None:
@@ -588,6 +1165,7 @@ def _vocabulary_response(item: VocabularyItem) -> VocabularyResponse:
     due = next_review_at is None or next_review_at <= now
     return VocabularyResponse(
         id=item.id,
+        lesson_id=item.lesson_id,
         mistake_id=item.mistake_id,
         word=item.word,
         translation=item.translation,
@@ -596,7 +1174,20 @@ def _vocabulary_response(item: VocabularyItem) -> VocabularyResponse:
         interval_days=item.interval_days,
         next_review_at=next_review_at,
         is_due=due,
+        is_saved=item.is_saved,
+        lesson_title=lesson_title,
     )
+
+
+@app.post("/api/v1/progress/vocabulary/{item_id}/save", response_model=VocabularyResponse)
+def save_vocabulary(item_id: int, db: Session = Depends(get_db)) -> VocabularyResponse:
+    item = db.scalar(select(VocabularyItem).where(VocabularyItem.id == item_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Vocabulary item not found")
+    item.is_saved = True
+    db.commit()
+    db.refresh(item)
+    return _vocabulary_response(item, _lesson_title(db, item.lesson_id))
 
 
 def _save_vocabulary(
@@ -610,12 +1201,7 @@ def _save_vocabulary(
         normalized = word.word.strip()
         if not normalized:
             continue
-        item = db.scalar(
-            select(VocabularyItem).where(
-                VocabularyItem.course_id == course_id,
-                VocabularyItem.word == normalized,
-            )
-        )
+        item = _find_vocabulary_item(db, course_id, normalized)
         if item is None:
             db.add(
                 VocabularyItem(
@@ -995,6 +1581,28 @@ def create_dialogue_session(db: Session = Depends(get_db)) -> DialogueSessionRes
     )
 
 
+@app.get("/api/v1/dialogue/sessions", response_model=list[DialogueSessionListItem])
+def list_dialogue_sessions(db: Session = Depends(get_db)) -> list[DialogueSessionListItem]:
+    sessions = db.scalars(
+        select(LearningSession)
+        .order_by(LearningSession.updated_at.desc(), LearningSession.id.desc())
+        .limit(30)
+    ).all()
+    return [
+        DialogueSessionListItem(
+            session_id=session.id,
+            current_lesson_id=session.current_lesson_id,
+            current_lesson_title=_lesson_title(db, session.current_lesson_id),
+            current_phase=session.current_phase,
+            status=session.status,
+            message_count=len(session.messages),
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+        )
+        for session in sessions
+    ]
+
+
 @app.post(
     "/api/v1/dialogue/sessions/{session_id}/select-lesson",
     response_model=DialogueSessionResponse,
@@ -1029,6 +1637,16 @@ def get_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> Dial
     session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
     if session is None:
         raise HTTPException(status_code=404, detail="Dialogue session not found")
+    current_lesson = None
+    if session.current_lesson_id is not None:
+        current_lesson = db.scalar(select(Lesson).where(Lesson.id == session.current_lesson_id))
+    recovered_answer = False
+    for message in session.messages:
+        if message.role == "user" and _save_dialogue_exercise_answer(db, current_lesson, message.content) is not None:
+            recovered_answer = True
+    if recovered_answer:
+        session.updated_at = datetime.now(timezone.utc)
+        db.commit()
     return DialogueHistoryResponse(
         session_id=session.id,
         current_lesson_id=session.current_lesson_id,
@@ -1040,6 +1658,42 @@ def get_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> Dial
             for message in session.messages
         ],
     )
+
+
+@app.post("/api/v1/dialogue/sessions/{session_id}/clear", response_model=DialogueHistoryResponse)
+def clear_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> DialogueHistoryResponse:
+    """Clear only the conversation history while keeping the current lesson and progress."""
+    session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
+    if session is None:
+        raise HTTPException(status_code=404, detail="Dialogue session not found")
+    db.query(DialogueMessage).filter(DialogueMessage.session_id == session.id).delete(
+        synchronize_session=False,
+    )
+    session.current_phase = "theory"
+    session.status = "active" if session.current_lesson_id is not None else "completed"
+    db.commit()
+    db.refresh(session)
+    return DialogueHistoryResponse(
+        session_id=session.id,
+        current_lesson_id=session.current_lesson_id,
+        current_lesson_title=_lesson_title(db, session.current_lesson_id),
+        current_phase=session.current_phase,
+        status=session.status,
+        messages=[],
+    )
+
+
+@app.delete(
+    "/api/v1/dialogue/sessions/{session_id}",
+    response_model=DialogueSessionDeleteResponse,
+)
+def delete_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> DialogueSessionDeleteResponse:
+    session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
+    if session is None:
+        raise HTTPException(status_code=404, detail="Dialogue session not found")
+    db.delete(session)
+    db.commit()
+    return DialogueSessionDeleteResponse(session_id=session_id, deleted=True)
 
 
 def _is_save_progress_command(message: str) -> bool:
@@ -1082,6 +1736,61 @@ def _is_practice_request(message: str) -> bool:
             "практика",
         )
     )
+
+
+def _normalize_exercise_answer(value: str) -> str:
+    trimmed = value.lower().strip()
+    while trimmed and trimmed[-1] in ".!?;:»”\"'":
+        trimmed = trimmed[:-1].rstrip()
+    while trimmed and trimmed[0] in "«“\"'":
+        trimmed = trimmed[1:].lstrip()
+    return " ".join(trimmed.split())
+
+
+def _save_dialogue_exercise_answer(db: Session, lesson: Lesson | None, message: str) -> Exercise | None:
+    if lesson is None:
+        return None
+    normalized_message = _normalize_exercise_answer(message)
+    if not normalized_message:
+        return None
+    exercises = db.scalars(
+        select(Exercise).where(Exercise.lesson_id == lesson.id).order_by(Exercise.id)
+    ).all()
+    matched_exercise = next(
+        (
+            exercise
+            for exercise in exercises
+            if exercise.correct_answer and _normalize_exercise_answer(exercise.correct_answer) == normalized_message
+        ),
+        None,
+    )
+    if matched_exercise is None:
+        return None
+    latest_answer = db.scalar(
+        select(UserAnswer)
+        .where(UserAnswer.exercise_id == matched_exercise.id)
+        .order_by(UserAnswer.created_at.desc(), UserAnswer.id.desc())
+    )
+    if latest_answer is not None and latest_answer.is_correct:
+        return matched_exercise
+    attempt = db.scalar(
+        select(LessonAttempt)
+        .where(LessonAttempt.lesson_id == lesson.id)
+        .order_by(LessonAttempt.id.desc())
+    )
+    if attempt is None:
+        attempt = LessonAttempt(lesson_id=lesson.id)
+        db.add(attempt)
+        db.flush()
+    db.add(UserAnswer(
+        exercise_id=matched_exercise.id,
+        lesson_attempt_id=attempt.id,
+        user_answer=message,
+        is_correct=True,
+        score=100,
+        ai_feedback=json.dumps({"source": "dialogue", "explanation": "Ответ подтвержден в диалоге."}, ensure_ascii=False),
+    ))
+    return matched_exercise
 
 
 @app.post("/api/v1/progress/reset", response_model=ProgressResetResponse)
@@ -1181,7 +1890,9 @@ def send_dialogue_message(
     if session.current_lesson_id is not None:
         current_lesson = db.scalar(select(Lesson).where(Lesson.id == session.current_lesson_id))
 
+    history_before_message = list(session.messages)
     db.add(DialogueMessage(session_id=session.id, role="user", content=request.message))
+    matched_dialogue_exercise = _save_dialogue_exercise_answer(db, current_lesson, request.message)
     progress_saved = False
 
     if _is_save_progress_command(request.message):
@@ -1243,11 +1954,31 @@ def send_dialogue_message(
                 )
             )
     else:
-        if current_lesson is None:
+        if matched_dialogue_exercise is not None:
+            exercises = db.scalars(
+                select(Exercise).where(Exercise.lesson_id == current_lesson.id).order_by(Exercise.id)
+            ).all()
+            current_index = next(
+                (index for index, exercise in enumerate(exercises) if exercise.id == matched_dialogue_exercise.id),
+                len(exercises) - 1,
+            )
+            next_exercise = exercises[current_index + 1] if current_index + 1 < len(exercises) else None
+            session.current_phase = "practice"
+            response_text = (
+                f"Правильно: **{matched_dialogue_exercise.correct_answer}**.\n\n"
+                + (
+                    f"Следующее упражнение: {next_exercise.question}\n\n"
+                    f"{next_exercise.instruction or 'Напиши свой ответ по-словацки.'}"
+                    if next_exercise
+                    else "Упражнение пройдено. Можешь перейти к следующей теме."
+                )
+            )
+        elif current_lesson is None:
             response_text = "Курс завершен. Можно повторить ошибки или начать новый курс."
         else:
-            history = session.messages[-12:]
+            history = history_before_message[-11:]
             history_text = "\n".join(f"{message.role}: {message.content}" for message in history)
+            history_text += f"\nuser: {request.message}"
             progress_summary = _dialogue_progress_summary(db, current_lesson)
             module = current_lesson.module
             exercises = db.scalars(
@@ -1291,6 +2022,7 @@ def send_dialogue_message(
             else:
                 session.current_phase = "practice"
                 prompt = (
+                    "CRITICAL CHECKING RULE: Treat the latest user message as the answer to the exercise most recently assigned by the teacher. First evaluate that exact answer and explicitly say whether it is correct or incorrect, show the correction when needed, and briefly explain why. Only after that may you give one next exercise. Never replace evaluation of the latest answer with a new exercise, and never ask the learner to resend the same answer.\n"
                     "ТЫ ВЕДЕШЬ СОСТОЯНИЕ УРОКА. Серверные данные ниже — источник истины.\n"
                     f"Текущая фаза: {session.current_phase}.\n"
                     f"Модуль: {module.title}. Урок: {current_lesson.title}. ID урока: {current_lesson.id}.\n"
@@ -1315,7 +2047,14 @@ def send_dialogue_message(
                         detail=f"Tutor provider unavailable: {error}",
                     ) from error
 
+    if current_lesson is not None:
+        _save_content_vocabulary(
+            db,
+            current_lesson,
+            _extract_explicit_vocabulary(response_text),
+        )
     db.add(DialogueMessage(session_id=session.id, role="assistant", content=response_text))
+    session.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(session)
     return DialogueMessageResponse(

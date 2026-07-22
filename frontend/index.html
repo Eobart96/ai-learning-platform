@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Learning Platform</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=13" />
+    <link rel="stylesheet" href="/ui/styles.css?v=29" />
   </head>
   <body>
     <main class="shell">
@@ -17,6 +17,7 @@
           <nav class="main-navigation" aria-label="Основные разделы">
             <button type="button" class="main-nav-link active" data-view-link="learning">Обучение</button>
             <button type="button" class="main-nav-link" data-view-link="exercises">Упражнения</button>
+            <button type="button" class="main-nav-link" data-view-link="tests">Тесты</button>
             <button type="button" class="main-nav-link" data-view-link="vocabulary">Слова</button>
             <button type="button" class="main-nav-link" data-view-link="diary">Дневник</button>
             <button type="button" class="main-nav-link" data-view-link="homework">Домашнее задание</button>
@@ -47,9 +48,26 @@
               <h2 id="dialogue-title">Подключение к преподавателю...</h2>
               <p id="dialogue-subtitle" class="muted">Диалог продолжится с текущей темы.</p>
             </div>
-            <button id="theory-chat-button" class="secondary compact" type="button">Показать теорию в чате</button>
-            <button id="save-progress-button" class="secondary compact" type="button">Сохранить прогресс</button>
-            <button id="finish-topic-button" class="test-action compact" type="button" title="Тестовый переход без выполнения упражнений">Закончить тему (тест)</button>
+            <div class="dialogue-header-actions">
+              <button id="clear-dialogue-button" class="secondary compact" type="button">Очистить диалог</button>
+              <button id="expand-dialogue-button" class="secondary compact" type="button" aria-pressed="false">Развернуть</button>
+              <button id="finish-topic-button" class="test-action compact" type="button" title="Тестовый переход без выполнения упражнений">Закончить тему (тест)</button>
+            </div>
+          </div>
+          <div class="dialogue-expanded-tools">
+            <div class="quick-actions" aria-label="Быстрые действия в развернутом чате">
+              <p class="quick-actions-title">Быстрые действия</p>
+              <button type="button" class="quick-action" data-quick-message="Покажи подробную теорию по текущей теме">Теория</button>
+              <button type="button" class="quick-action" data-quick-message="готов к упражнению">К практике</button>
+              <button type="button" class="quick-action" data-quick-message="сохрани прогресс">Сохранить</button>
+            </div>
+            <div class="dialogue-expanded-history">
+              <div class="panel-heading">
+                <h3>История диалогов</h3>
+                <button id="expanded-new-dialogue-button" class="icon-button" type="button">+ Новый</button>
+              </div>
+              <div id="expanded-dialogue-history" class="dialogue-history-list"></div>
+            </div>
           </div>
           <div id="chat-messages" class="chat-messages"></div>
           <form id="chat-form" class="chat-form">
@@ -59,7 +77,7 @@
             </div>
             <div class="chat-actions">
               <span class="muted">Можно отвечать по-русски или по-словацки</span>
-              <button type="submit">Отправить</button>
+              <button id="chat-submit-button" type="submit">Отправить</button>
             </div>
           </form>
         </section>
@@ -73,7 +91,7 @@
           </section>
 
           <section class="card compact-card context-section exercises-section" data-context-section="exercises">
-            <div class="panel-heading"><h2>Упражнения</h2><span class="muted">по теме</span></div>
+            <div class="panel-heading exercises-heading"><h2>Упражнения</h2><select id="exercise-topic-select" aria-label="Выбрать тему упражнений"></select></div>
             <div id="exercises" class="exercise-list"></div>
             <form id="answer-form" class="answer-form">
               <textarea id="answer" rows="2" placeholder="Если хочешь проверить ответ отдельно..." required></textarea>
@@ -85,14 +103,43 @@
             <div id="feedback" class="feedback hidden"></div>
           </section>
 
+          <section id="module-test-section" class="card compact-card context-section module-test-section hidden" data-context-section="tests">
+            <div class="panel-heading"><div><h2>Тесты по модулям</h2><span id="module-test-subtitle" class="muted"></span></div></div>
+            <div id="module-tests-list" class="module-tests-list"></div>
+            <div id="module-test"></div>
+          </section>
+
           <section class="card compact-card context-section summary-section" data-context-section="summary">
             <div class="panel-heading"><h2>Сводка</h2><span class="muted">по курсу</span></div>
             <div id="progress" class="metrics"></div>
             <div id="mistakes" class="mistake-list"></div>
+            <div class="quick-actions" aria-label="Быстрые действия">
+              <p class="quick-actions-title">Быстрые действия</p>
+              <button type="button" class="quick-action" data-quick-message="Покажи подробную теорию по текущей теме">Теория</button>
+              <button type="button" class="quick-action" data-quick-message="готов к упражнению">К практике</button>
+              <button type="button" class="quick-action" data-quick-message="сохрани прогресс">Сохранить</button>
+            </div>
+          </section>
+
+          <section class="card compact-card context-section history-section" data-context-section="history">
+            <div class="panel-heading">
+              <h2>История диалогов</h2>
+              <button id="new-dialogue-button" class="icon-button" type="button">+ Новый</button>
+            </div>
+            <div id="dialogue-history" class="dialogue-history-list"></div>
+          </section>
+
+          <section class="card compact-card context-section topic-vocabulary-section" data-context-section="topic-vocabulary">
+            <div class="panel-heading">
+              <h2>Новые слова темы</h2>
+              <span class="muted">для Anki</span>
+            </div>
+            <div id="topic-vocabulary" class="vocabulary-list"></div>
           </section>
 
           <section class="card compact-card context-section vocabulary-section" data-context-section="vocabulary">
-            <div class="panel-heading"><h2>Слова</h2><span class="muted">повторение</span></div>
+            <div class="panel-heading vocabulary-heading"><div><h2>Каталог слов</h2><span class="muted">по пройденным темам</span></div><button id="download-vocabulary-button" class="secondary compact" type="button">Скачать .txt</button></div>
+            <div id="vocabulary-tags" class="vocabulary-tags"></div>
             <div id="vocabulary" class="vocabulary-list"></div>
           </section>
 
@@ -118,6 +165,6 @@
         </aside>
       </div>
     </main>
-    <script src="/ui/app.js?v=15"></script>
+    <script src="/ui/app.js?v=35"></script>
   </body>
 </html>
