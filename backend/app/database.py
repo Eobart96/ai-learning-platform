@@ -53,6 +53,13 @@ def ensure_sqlite_schema(database_engine) -> None:
         diary_columns = {column["name"] for column in inspect(database_engine).get_columns("diary_entries")}
         if "mistake_id" not in diary_columns:
             connection.execute(text("ALTER TABLE diary_entries ADD COLUMN mistake_id INTEGER"))
+        mistake_columns = {column["name"] for column in inspect(database_engine).get_columns("mistakes")}
+        if "lesson_id" not in mistake_columns:
+            connection.execute(text("ALTER TABLE mistakes ADD COLUMN lesson_id INTEGER"))
+        if "source" not in mistake_columns:
+            connection.execute(text("ALTER TABLE mistakes ADD COLUMN source TEXT NOT NULL DEFAULT 'exercise'"))
+        if "practice_count" not in mistake_columns:
+            connection.execute(text("ALTER TABLE mistakes ADD COLUMN practice_count INTEGER NOT NULL DEFAULT 0"))
         session_columns = {column["name"] for column in inspect(database_engine).get_columns("learning_sessions")}
         if "current_phase" not in session_columns:
             connection.execute(text("ALTER TABLE learning_sessions ADD COLUMN current_phase TEXT DEFAULT 'theory'"))

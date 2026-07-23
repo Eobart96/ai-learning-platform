@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Learning Platform</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=29" />
+    <link rel="stylesheet" href="/ui/styles.css?v=30" />
   </head>
   <body>
     <main class="shell">
@@ -14,10 +14,16 @@
           <h1>Учебный кабинет Sergej</h1>
         </div>
         <div class="topbar-actions">
+          <div class="codex-connection" id="codex-connection">
+            <span id="codex-indicator" class="codex-indicator" aria-hidden="true"></span>
+            <span id="codex-connection-label">Проверка Codex…</span>
+            <button id="codex-connect-button" class="codex-connect-button compact" type="button">Подключить Codex</button>
+          </div>
           <nav class="main-navigation" aria-label="Основные разделы">
             <button type="button" class="main-nav-link active" data-view-link="learning">Обучение</button>
             <button type="button" class="main-nav-link" data-view-link="exercises">Упражнения</button>
             <button type="button" class="main-nav-link" data-view-link="tests">Тесты</button>
+            <button type="button" class="main-nav-link" data-view-link="mistakes">Ошибки</button>
             <button type="button" class="main-nav-link" data-view-link="vocabulary">Слова</button>
             <button type="button" class="main-nav-link" data-view-link="diary">Дневник</button>
             <button type="button" class="main-nav-link" data-view-link="homework">Домашнее задание</button>
@@ -110,7 +116,7 @@
           </section>
 
           <section class="card compact-card context-section summary-section" data-context-section="summary">
-            <div class="panel-heading"><h2>Сводка</h2><span class="muted">по курсу</span></div>
+            <div class="panel-heading"><h2 id="summary-title">Сводка</h2><span id="summary-subtitle" class="muted">по курсу</span></div>
             <div id="progress" class="metrics"></div>
             <div id="mistakes" class="mistake-list"></div>
             <div class="quick-actions" aria-label="Быстрые действия">
@@ -165,6 +171,6 @@
         </aside>
       </div>
     </main>
-    <script src="/ui/app.js?v=35"></script>
+    <script src="/ui/app.js?v=39"></script>
   </body>
 </html>

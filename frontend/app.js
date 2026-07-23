@@ -2,6 +2,7 @@ const state = {
   lesson: null,
   selectedExercise: null,
   roadmap: [],
+  mistakes: [],
   sessionId: Number(localStorage.getItem("learning_session_id")) || null,
   currentLessonId: Number(localStorage.getItem("learning_lesson_id")) || 1,
   isSending: false,
@@ -12,6 +13,9 @@ const state = {
 
 const elements = {
   status: document.querySelector("#status"),
+  codexConnection: document.querySelector("#codex-connection"),
+  codexConnectionLabel: document.querySelector("#codex-connection-label"),
+  codexConnectButton: document.querySelector("#codex-connect-button"),
   roadmap: document.querySelector("#roadmap"),
   lessonTitle: document.querySelector("#lesson-title"),
   lessonSlug: document.querySelector("#lesson-slug"),
@@ -27,6 +31,8 @@ const elements = {
   moduleTest: document.querySelector("#module-test"),
   progress: document.querySelector("#progress"),
   mistakes: document.querySelector("#mistakes"),
+  summaryTitle: document.querySelector("#summary-title"),
+  summarySubtitle: document.querySelector("#summary-subtitle"),
   dialogueHistory: document.querySelector("#dialogue-history"),
   expandedDialogueHistory: document.querySelector("#expanded-dialogue-history"),
   topicVocabulary: document.querySelector("#topic-vocabulary"),
@@ -110,12 +116,13 @@ function initSlovakKeyboards() {
 initSlovakKeyboards();
 
 function initMainNavigation() {
-  const allowedViews = new Set(["learning", "exercises", "tests", "vocabulary", "diary", "homework"]);
+  const allowedViews = new Set(["learning", "exercises", "tests", "mistakes", "vocabulary", "diary", "homework"]);
   const activate = (view) => {
     state.view = allowedViews.has(view) ? view : "learning";
     elements.shell.dataset.view = state.view;
     elements.viewLinks.forEach((link) => link.classList.toggle("active", link.dataset.viewLink === state.view));
     localStorage.setItem("learning_view", state.view);
+    renderMistakes(state.mistakes);
   };
   elements.viewLinks.forEach((link) => link.addEventListener("click", () => activate(link.dataset.viewLink)));
   activate(state.view);
@@ -133,6 +140,31 @@ async function request(path, options) {
 function setStatus(message, isError) {
   elements.status.textContent = message;
   elements.status.classList.toggle("error", Boolean(isError));
+}
+
+let codexStatusTimer = null;
+
+function renderCodexStatus(status, connecting = false) {
+  elements.codexConnection.classList.toggle("connected", status.authenticated);
+  elements.codexConnection.classList.toggle("unavailable", !status.installed);
+  elements.codexConnection.classList.toggle("connecting", connecting && !status.authenticated);
+  elements.codexConnectionLabel.textContent = status.authenticated
+    ? "Codex подключён"
+    : (!status.installed ? "Codex не найден" : (connecting ? "Ожидаю вход…" : "Codex не подключён"));
+  elements.codexConnection.title = status.message || "";
+  elements.codexConnectButton.disabled = connecting || !status.installed;
+  elements.codexConnectButton.textContent = status.installed ? "Подключить Codex" : "CLI не найден";
+}
+
+async function refreshCodexStatus(connecting = false) {
+  const status = await request("/api/v1/codex/status");
+  renderCodexStatus(status, connecting);
+  if (status.authenticated && codexStatusTimer) {
+    window.clearInterval(codexStatusTimer);
+    codexStatusTimer = null;
+    setStatus("Codex подключён и готов работать как агент.", false);
+  }
+  return status;
 }
 
 function escapeHtml(value) {
@@ -351,11 +383,58 @@ function renderProgress(progress) {
 }
 
 function renderMistakes(mistakes) {
-  elements.mistakes.innerHTML = mistakes.length
-    ? mistakes.slice(0, 3).map((mistake) => '<article class="mistake"><strong>' +
-      escapeHtml(mistake.category) + " · " + mistake.mistake_count + " раз</strong><p>" +
-      escapeHtml(mistake.explanation) + "</p></article>").join("")
+  state.mistakes = mistakes;
+  const analyticsView = state.view === "mistakes";
+  elements.summaryTitle.textContent = analyticsView ? "Аналитика ошибок" : "Сводка";
+  elements.summarySubtitle.textContent = analyticsView ? "единый журнал и отработка" : "по курсу";
+  const sourceNames = {
+    exercise: "Упражнение",
+    homework: "Домашнее задание",
+    diary: "Дневник",
+    dialogue: "Живой урок",
+    test: "Тест",
+  };
+  const visibleMistakes = analyticsView ? mistakes : mistakes.slice(0, 3);
+  elements.mistakes.innerHTML = visibleMistakes.length
+    ? visibleMistakes.map((mistake) => '<article class="mistake' + (analyticsView ? " mistake-detailed" : "") + '">' +
+      '<div class="mistake-heading"><strong>' + escapeHtml(mistake.category) + '</strong><span>' +
+      escapeHtml(sourceNames[mistake.source] || mistake.source) + " · " + mistake.mistake_count + " раз</span></div>" +
+      (mistake.lesson_title ? '<small>Тема: ' + escapeHtml(mistake.lesson_title) + '</small>' : '') +
+      (analyticsView ? '<div class="mistake-comparison"><p><b>Твой ответ</b>' + escapeHtml(mistake.original_answer) +
+      '</p><p><b>Исправление</b>' + escapeHtml(mistake.corrected_answer) + '</p></div>' : '') +
+      '<p>' + escapeHtml(mistake.explanation) + '</p>' +
+      (analyticsView ? '<div class="mistake-actions"><span>Отработок: ' + mistake.practice_count +
+      '</span><button type="button" data-practice-mistake-id="' + mistake.id + '">Отработать</button></div>' : '') +
+      '</article>').join("")
     : '<p class="empty">Ошибок для повторения пока нет.</p>';
+  elements.mistakes.querySelectorAll("[data-practice-mistake-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const mistake = mistakes.find((item) => String(item.id) === button.dataset.practiceMistakeId);
+      if (!mistake || state.isSending) return;
+      button.disabled = true;
+      try {
+        await request("/api/v1/progress/mistakes/" + mistake.id + "/practice", { method: "POST" });
+        if (mistake.lesson_id && state.sessionId) {
+          await request("/api/v1/dialogue/sessions/" + state.sessionId + "/select-lesson", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lesson_id: mistake.lesson_id }),
+          });
+          state.currentLessonId = mistake.lesson_id;
+          localStorage.setItem("learning_lesson_id", String(mistake.lesson_id));
+        }
+        document.querySelector('[data-view-link="learning"]').click();
+        elements.chatInput.value = "Давай отдельно отработаем мою ошибку. Категория: " + mistake.category +
+          ". Мой ответ: " + mistake.original_answer + ". Исправление: " + mistake.corrected_answer +
+          ". Объяснение: " + mistake.explanation +
+          ". Сначала коротко напомни правило, затем дай одно новое упражнение строго в рамках уже пройденной темы.";
+        elements.chatForm.requestSubmit();
+      } catch (error) {
+        setStatus(error.message, true);
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function formatDialogueDate(value) {
@@ -479,6 +558,37 @@ function showDiaryFeedback(entry) {
     '</p><p>' + escapeHtml(entry.explanation) + '</p>';
 }
 
+function renderHomeworkFeedback(item) {
+  let assessment = null;
+  try {
+    assessment = item.ai_feedback ? JSON.parse(item.ai_feedback) : null;
+  } catch (_) {
+    assessment = null;
+  }
+
+  const isCorrect = assessment?.is_correct === true;
+  const title = isCorrect ? "Выполнено правильно" : "Разбор ошибок";
+  const submitted = item.submitted_answer
+    ? '<div class="homework-feedback-row"><b>Твой ответ</b><p>' + escapeHtml(item.submitted_answer) + '</p></div>'
+    : "";
+  const corrected = assessment?.corrected_answer
+    ? '<div class="homework-feedback-row corrected"><b>Исправленный вариант</b><p>' +
+      escapeHtml(assessment.corrected_answer) + '</p></div>'
+    : "";
+  const explanation = assessment?.explanation
+    ? '<div class="homework-feedback-row"><b>Объяснение</b><p>' +
+      escapeHtml(assessment.explanation) + '</p></div>'
+    : "";
+  const nextExercise = assessment?.next_exercise
+    ? '<div class="homework-feedback-row next"><b>Что повторить</b><p>' +
+      escapeHtml(assessment.next_exercise) + '</p></div>'
+    : "";
+
+  return '<div class="homework-feedback ' + (isCorrect ? "correct" : "wrong") + '">' +
+    '<div class="homework-feedback-heading"><strong>' + title + '</strong><span>' +
+    item.score + '/100</span></div>' + submitted + corrected + explanation + nextExercise + '</div>';
+}
+
 function renderHomework(items) {
   if (!items.length) {
     elements.homework.innerHTML = '<p class="empty">Домашнее задание появится после сохранения темы.</p>';
@@ -486,11 +596,15 @@ function renderHomework(items) {
   }
   elements.homework.innerHTML = items.slice(0, 3).map((item) => {
     const result = item.score === null ?
-      '<form class="homework-form" data-homework-id="' + item.id + '"><textarea rows="3" placeholder="Выполни задание здесь..." required></textarea><button type="submit">Отправить на проверку</button></form>' :
-      '<p class="homework-score">Проверено: <strong>' + item.score + '/100</strong></p>';
+      '<form class="homework-form" data-homework-id="' + item.id + '">' +
+      '<textarea rows="3" placeholder="Выполни задание здесь..." required></textarea>' +
+      '<div class="slovak-keyboard" data-keyboard><span class="keyboard-label">Словацкие буквы</span></div>' +
+      '<button type="submit">Отправить на проверку</button></form>' :
+      renderHomeworkFeedback(item);
     return '<article class="homework-item"><strong>' + escapeHtml(item.title) + '</strong><p>' +
       escapeHtml(item.description) + '</p>' + result + '</article>';
   }).join("");
+  initSlovakKeyboards();
   elements.homework.querySelectorAll(".homework-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -612,6 +726,7 @@ async function refresh() {
     renderModuleTest(moduleTest);
     renderTopicVocabulary(topicVocabulary);
     renderProgress(progress);
+    state.mistakes = mistakes;
     renderMistakes(mistakes);
     renderVocabulary(vocabulary);
     renderHomework(homework);
@@ -848,6 +963,22 @@ elements.finishTopicButton.addEventListener("click", async () => {
   finally { elements.finishTopicButton.disabled = false; }
 });
 elements.refreshButton.addEventListener("click", () => refresh());
+elements.codexConnectButton.addEventListener("click", async () => {
+  elements.codexConnectButton.disabled = true;
+  try {
+    const status = await request("/api/v1/codex/login", { method: "POST" });
+    renderCodexStatus(status, true);
+    setStatus(status.message, false);
+    if (!status.authenticated && status.installed && !codexStatusTimer) {
+      codexStatusTimer = window.setInterval(() => {
+        refreshCodexStatus(true).catch((error) => setStatus(error.message, true));
+      }, 2000);
+    }
+  } catch (error) {
+    setStatus(error.message, true);
+    await refreshCodexStatus(false).catch(() => {});
+  }
+});
 elements.exerciseTopicSelect.addEventListener("change", () => selectExerciseTopic(Number(elements.exerciseTopicSelect.value)));
 elements.resetProgressButton.addEventListener("click", async () => {
   if (!window.confirm("Очистить историю уроков, ошибки, слова, дневник и домашние задания? Курс и roadmap сохранятся.")) return;
@@ -862,4 +993,5 @@ elements.resetProgressButton.addEventListener("click", async () => {
   } catch (error) { setStatus(error.message, true); elements.resetProgressButton.disabled = false; }
 });
 
+refreshCodexStatus(false).catch((error) => setStatus(error.message, true));
 loadDialogue().catch((error) => setStatus(error.message, true));

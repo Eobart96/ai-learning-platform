@@ -37,8 +37,10 @@ from app.tutor import (
     TutorAssessment,
     VocabularyWord,
     build_tutor_context,
+    get_codex_connection_status,
     parse_homework_generation,
     parse_tutor_assessment,
+    start_codex_login,
 )
 
 
@@ -57,6 +59,7 @@ async def lifespan(_: FastAPI):
         _seed_completed_lesson_content_vocabulary(db)
         _seed_historical_dialogue_vocabulary(db)
         _deduplicate_vocabulary(db)
+        _backfill_shared_mistake_analytics(db)
     yield
 
 
@@ -71,6 +74,12 @@ class TutorMessageRequest(BaseModel):
 class TutorMessageResponse(BaseModel):
     provider: str
     response: str
+
+
+class CodexConnectionResponse(BaseModel):
+    installed: bool
+    authenticated: bool
+    message: str
 
 
 class ExerciseResponse(BaseModel):
@@ -114,11 +123,15 @@ class ProgressResponse(BaseModel):
 
 class MistakeResponse(BaseModel):
     id: int
+    lesson_id: int | None
+    lesson_title: str | None
+    source: str
     category: str
     original_answer: str
     corrected_answer: str
     explanation: str
     mistake_count: int
+    practice_count: int
 
 
 class LessonCompletionResponse(BaseModel):
@@ -335,6 +348,21 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/codex/status", response_model=CodexConnectionResponse)
+def codex_status() -> CodexConnectionResponse:
+    status = get_codex_connection_status(get_settings())
+    return CodexConnectionResponse(**status.__dict__)
+
+
+@app.post("/api/v1/codex/login", response_model=CodexConnectionResponse)
+def codex_login() -> CodexConnectionResponse:
+    try:
+        status = start_codex_login(get_settings())
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return CodexConnectionResponse(**status.__dict__)
+
+
 @app.get("/", include_in_schema=False)
 def ui_home() -> RedirectResponse:
     return RedirectResponse(url="/ui/")
@@ -458,29 +486,16 @@ def answer_lesson(
     db.add(user_answer)
     mistake_id: int | None = None
     if not assessment.is_correct:
-        course_id = lesson.module.course_id
-        category = assessment.mistake_category or "general"
-        mistake = db.scalar(
-            select(Mistake).where(
-                Mistake.course_id == course_id,
-                Mistake.category == category,
-                Mistake.original_answer == request.answer,
-            )
+        mistake = _record_mistake(
+            db,
+            course_id=lesson.module.course_id,
+            lesson_id=lesson.id,
+            source="exercise",
+            category=assessment.mistake_category or "general",
+            original_answer=request.answer,
+            corrected_answer=assessment.corrected_answer,
+            explanation=assessment.explanation,
         )
-        if mistake is None:
-            mistake = Mistake(
-                course_id=course_id,
-                category=category,
-                original_answer=request.answer,
-                corrected_answer=assessment.corrected_answer,
-                explanation=assessment.explanation,
-            )
-            db.add(mistake)
-            db.flush()
-        else:
-            mistake.mistake_count += 1
-            mistake.corrected_answer = assessment.corrected_answer
-            mistake.explanation = assessment.explanation
         mistake_id = mistake.id
     _save_vocabulary(db, lesson.module.course_id, lesson.id, assessment.new_words, mistake_id)
     db.commit()
@@ -778,14 +793,25 @@ def submit_module_final_test(
     db.flush()
     for item in definition:
         submitted_answer = request.answers.get(item["id"], "")
+        is_correct = _normalize_test_answer(submitted_answer) == _normalize_test_answer(item["answer"])
         db.add(ModuleTestAnswer(
             attempt_id=attempt.id,
             question_id=item["id"],
             question=item["question"],
             expected_answer=item["answer"],
             submitted_answer=submitted_answer,
-            is_correct=_normalize_test_answer(submitted_answer) == _normalize_test_answer(item["answer"]),
+            is_correct=is_correct,
         ))
+        if not is_correct:
+            _record_mistake(
+                db,
+                course_id=module.course_id,
+                source="test",
+                category=f"module-test:{module.slug}",
+                original_answer=submitted_answer or "—",
+                corrected_answer=item["answer"],
+                explanation=f"{item['question']} Правильный ответ: {item['answer']}.",
+            )
     db.commit()
     return ModuleTestSubmitResponse(
         **payload,
@@ -806,14 +832,40 @@ def get_mistakes(db: Session = Depends(get_db)) -> list[MistakeResponse]:
     return [
         MistakeResponse(
             id=mistake.id,
+            lesson_id=mistake.lesson_id,
+            lesson_title=_lesson_title(db, mistake.lesson_id),
+            source=mistake.source,
             category=mistake.category,
             original_answer=mistake.original_answer,
             corrected_answer=mistake.corrected_answer,
             explanation=mistake.explanation,
             mistake_count=mistake.mistake_count,
+            practice_count=mistake.practice_count,
         )
         for mistake in mistakes
     ]
+
+
+@app.post("/api/v1/progress/mistakes/{mistake_id}/practice", response_model=MistakeResponse)
+def start_mistake_practice(mistake_id: int, db: Session = Depends(get_db)) -> MistakeResponse:
+    mistake = db.scalar(select(Mistake).where(Mistake.id == mistake_id))
+    if mistake is None:
+        raise HTTPException(status_code=404, detail="Mistake not found")
+    mistake.practice_count += 1
+    db.commit()
+    db.refresh(mistake)
+    return MistakeResponse(
+        id=mistake.id,
+        lesson_id=mistake.lesson_id,
+        lesson_title=_lesson_title(db, mistake.lesson_id),
+        source=mistake.source,
+        category=mistake.category,
+        original_answer=mistake.original_answer,
+        corrected_answer=mistake.corrected_answer,
+        explanation=mistake.explanation,
+        mistake_count=mistake.mistake_count,
+        practice_count=mistake.practice_count,
+    )
 
 
 @app.get("/api/v1/progress/mistakes/next", response_model=NextMistakeResponse | None)
@@ -1190,6 +1242,128 @@ def save_vocabulary(item_id: int, db: Session = Depends(get_db)) -> VocabularyRe
     return _vocabulary_response(item, _lesson_title(db, item.lesson_id))
 
 
+def _record_mistake(
+    db: Session,
+    *,
+    course_id: int,
+    source: str,
+    category: str,
+    original_answer: str,
+    corrected_answer: str,
+    explanation: str,
+    lesson_id: int | None = None,
+) -> Mistake:
+    """Create or update one normalized record in the shared mistake analytics."""
+    normalized_original = original_answer.strip()
+    mistake = db.scalar(
+        select(Mistake).where(
+            Mistake.course_id == course_id,
+            Mistake.source == source,
+            Mistake.category == category,
+            Mistake.original_answer == normalized_original,
+        )
+    )
+    if mistake is None:
+        mistake = Mistake(
+            course_id=course_id,
+            lesson_id=lesson_id,
+            source=source,
+            category=category,
+            original_answer=normalized_original,
+            corrected_answer=corrected_answer.strip(),
+            explanation=explanation.strip(),
+        )
+        db.add(mistake)
+        db.flush()
+    else:
+        mistake.mistake_count += 1
+        mistake.lesson_id = lesson_id or mistake.lesson_id
+        mistake.source = source
+        mistake.corrected_answer = corrected_answer.strip() or mistake.corrected_answer
+        mistake.explanation = explanation.strip() or mistake.explanation
+        mistake.last_mistake_at = datetime.now(timezone.utc)
+    return mistake
+
+
+def _backfill_shared_mistake_analytics(db: Session) -> None:
+    """Import structured historical homework, diary, and test errors once."""
+    diary_entries = db.scalars(
+        select(DiaryEntry).where(DiaryEntry.mistake_id.is_not(None))
+    ).all()
+    for entry in diary_entries:
+        mistake = db.scalar(select(Mistake).where(Mistake.id == entry.mistake_id))
+        if mistake is not None:
+            mistake.source = "diary"
+            mistake.lesson_id = entry.lesson_id or mistake.lesson_id
+
+    homework_items = db.scalars(
+        select(Homework).where(
+            Homework.status == "checked",
+            Homework.submitted_answer.is_not(None),
+            Homework.ai_feedback.is_not(None),
+        )
+    ).all()
+    for homework in homework_items:
+        try:
+            assessment = TutorAssessment.model_validate_json(homework.ai_feedback)
+        except (ValueError, TypeError):
+            continue
+        if assessment.is_correct:
+            continue
+        existing = db.scalar(
+            select(Mistake).where(
+                Mistake.course_id == homework.course_id,
+                Mistake.source == "homework",
+                Mistake.original_answer == homework.submitted_answer.strip(),
+            )
+        )
+        if existing is None:
+            _record_mistake(
+                db,
+                course_id=homework.course_id,
+                lesson_id=homework.lesson_id,
+                source="homework",
+                category=assessment.mistake_category or "homework",
+                original_answer=homework.submitted_answer,
+                corrected_answer=assessment.corrected_answer,
+                explanation=assessment.explanation,
+            )
+
+    wrong_test_answers = db.scalars(
+        select(ModuleTestAnswer).where(ModuleTestAnswer.is_correct.is_(False))
+    ).all()
+    for answer in wrong_test_answers:
+        attempt = db.scalar(
+            select(ModuleTestAttempt).where(ModuleTestAttempt.id == answer.attempt_id)
+        )
+        module = (
+            db.scalar(select(Module).where(Module.id == attempt.module_id))
+            if attempt is not None
+            else None
+        )
+        if module is None:
+            continue
+        existing = db.scalar(
+            select(Mistake).where(
+                Mistake.course_id == module.course_id,
+                Mistake.source == "test",
+                Mistake.original_answer == (answer.submitted_answer.strip() or "—"),
+                Mistake.corrected_answer == answer.expected_answer,
+            )
+        )
+        if existing is None:
+            _record_mistake(
+                db,
+                course_id=module.course_id,
+                source="test",
+                category=f"module-test:{module.slug}",
+                original_answer=answer.submitted_answer or "—",
+                corrected_answer=answer.expected_answer,
+                explanation=f"{answer.question} Правильный ответ: {answer.expected_answer}.",
+            )
+    db.commit()
+
+
 def _save_vocabulary(
     db: Session,
     course_id: int,
@@ -1197,23 +1371,40 @@ def _save_vocabulary(
     words,
     mistake_id: int | None = None,
 ) -> None:
+    existing_items = list(
+        db.scalars(
+            select(VocabularyItem).where(VocabularyItem.course_id == course_id)
+        ).all()
+    )
+    existing_items.extend(
+        item
+        for item in db.new
+        if isinstance(item, VocabularyItem) and item.course_id == course_id
+    )
+    items_by_key = {
+        _vocabulary_key(item.word): item
+        for item in existing_items
+        if _vocabulary_key(item.word)
+    }
+
     for word in words:
         normalized = word.word.strip()
         if not normalized:
             continue
-        item = _find_vocabulary_item(db, course_id, normalized)
+        key = _vocabulary_key(normalized)
+        item = items_by_key.get(key)
         if item is None:
-            db.add(
-                VocabularyItem(
-                    course_id=course_id,
-                    lesson_id=lesson_id,
-                    mistake_id=mistake_id,
-                    word=normalized,
-                    translation=word.translation.strip(),
-                    example=word.example,
-                    next_review_at=datetime.now(timezone.utc),
-                )
+            item = VocabularyItem(
+                course_id=course_id,
+                lesson_id=lesson_id,
+                mistake_id=mistake_id,
+                word=normalized,
+                translation=word.translation.strip(),
+                example=word.example,
+                next_review_at=datetime.now(timezone.utc),
             )
+            db.add(item)
+            items_by_key[key] = item
         else:
             item.mistake_id = mistake_id or item.mistake_id
             item.translation = word.translation.strip() or item.translation
@@ -1335,28 +1526,16 @@ def create_diary_entry(
 
     mistake_id: int | None = None
     if not assessment.is_correct:
-        category = assessment.mistake_category or "diary"
-        mistake = db.scalar(
-            select(Mistake).where(
-                Mistake.course_id == course.id,
-                Mistake.category == category,
-                Mistake.original_answer == request.answer,
-            )
+        mistake = _record_mistake(
+            db,
+            course_id=course.id,
+            lesson_id=lesson.id if lesson else None,
+            source="diary",
+            category=assessment.mistake_category or "diary",
+            original_answer=request.answer,
+            corrected_answer=assessment.corrected_answer,
+            explanation=assessment.explanation,
         )
-        if mistake is None:
-            mistake = Mistake(
-                course_id=course.id,
-                category=category,
-                original_answer=request.answer,
-                corrected_answer=assessment.corrected_answer,
-                explanation=assessment.explanation,
-            )
-            db.add(mistake)
-            db.flush()
-        else:
-            mistake.mistake_count += 1
-            mistake.corrected_answer = assessment.corrected_answer
-            mistake.explanation = assessment.explanation
         mistake_id = mistake.id
 
     entry = DiaryEntry(
@@ -1425,6 +1604,16 @@ def generate_homework(
     prompt = (
         f"Создай домашнее задание для урока «{lesson.title}». "
         f"Слабая тема ученика: {focus}. Контекст ошибки: {focus_details} "
+        f"CURRENT LESSON THEORY — HARD GRAMMAR BOUNDARY:\n{lesson.theory or 'Теория не заполнена.'}\n"
+        "PREREQUISITE RULE: Test only grammar rules explicitly explained in CURRENT LESSON THEORY or earlier lessons. "
+        "Never require a case, conjugation, declension, or word-form change that has not been explained yet. "
+        "A construction appearing in an example does not authorize a hidden inflection rule. Build the task so it can "
+        "be completed entirely with unchanged dictionary forms and patterns explicitly demonstrated in the theory. "
+        "Do not jump ahead to later course topics. "
+        "EXERCISE WORD-BANK RULE: If the learner must compose phrases, name objects, or choose noun forms, "
+        "include a ready-to-use bank of 5-8 Slovak nouns. For every noun give its grammatical gender "
+        "(m./f./n.) and Russian translation. Prefer vocabulary from the current topic and add a few useful "
+        "new words. The learner must never need to invent unknown nouns from memory. "
         "Верни ТОЛЬКО JSON без markdown с полями: title, description, focus_category. "
         "Описание должно содержать практическое упражнение на словацком языке, "
         "русский перевод и короткую инструкцию. Не давай готовый ответ."
@@ -1496,6 +1685,11 @@ def submit_homework(
         f"Проверь выполнение домашнего задания по уроку «{lesson.title if lesson else 'курс'}».\n"
         f"Задание: {homework.description}\n"
         f"Ответ ученика: {request.answer}\n\n"
+        f"CURRENT LESSON THEORY — HARD GRADING BOUNDARY:\n{lesson.theory if lesson and lesson.theory else 'Теория не заполнена.'}\n"
+        "ASSESSMENT SCOPE RULE: Grade only grammar explicitly explained in CURRENT LESSON THEORY or earlier lessons. "
+        "Do not deduct points for a case, conjugation, declension, or word-form change that has not been taught yet. "
+        "If the generated task accidentally requires later grammar, accept an answer that demonstrates the current "
+        "lesson target, clearly say the task exceeded the lesson scope, and do not make the learner correct the future rule. "
         "Верни только JSON без markdown с полями: is_correct (boolean), score (integer 0-100), "
         "corrected_answer (string), explanation (string), next_exercise (string), "
         "mistake_category (string или null). Проверь именно ответ ученика и объясни ошибки по-русски. "
@@ -1513,8 +1707,21 @@ def submit_homework(
     homework.status = "checked"
     homework.ai_feedback = assessment.model_dump_json()
     homework.submitted_at = datetime.now(timezone.utc)
+    mistake_id: int | None = None
+    if not assessment.is_correct:
+        mistake = _record_mistake(
+            db,
+            course_id=homework.course_id,
+            lesson_id=lesson.id if lesson else None,
+            source="homework",
+            category=assessment.mistake_category or "homework",
+            original_answer=request.answer,
+            corrected_answer=assessment.corrected_answer,
+            explanation=assessment.explanation,
+        )
+        mistake_id = mistake.id
     if lesson is not None:
-        _save_vocabulary(db, homework.course_id, lesson.id, assessment.new_words)
+        _save_vocabulary(db, homework.course_id, lesson.id, assessment.new_words, mistake_id)
     db.commit()
     db.refresh(homework)
     return HomeworkSubmitResponse(
@@ -1703,6 +1910,23 @@ def _is_save_progress_command(message: str) -> bool:
         "сохранить прогресс",
         "save progress",
     }
+
+
+def _extract_dialogue_assessment(response: str) -> tuple[str, TutorAssessment | None]:
+    """Strip the agent-only assessment marker and return its structured payload."""
+    match = re.search(
+        r"\s*<mistake-assessment>(\{.*?\})</mistake-assessment>\s*$",
+        response,
+        flags=re.DOTALL,
+    )
+    if match is None:
+        return response.strip(), None
+    visible_response = response[:match.start()].strip()
+    try:
+        assessment = TutorAssessment.model_validate(json.loads(match.group(1)))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return response.strip(), None
+    return visible_response, assessment
 
 
 def _is_theory_request(message: str) -> bool:
@@ -1894,6 +2118,7 @@ def send_dialogue_message(
     db.add(DialogueMessage(session_id=session.id, role="user", content=request.message))
     matched_dialogue_exercise = _save_dialogue_exercise_answer(db, current_lesson, request.message)
     progress_saved = False
+    dialogue_assessment: TutorAssessment | None = None
 
     if _is_save_progress_command(request.message):
         if current_lesson is None:
@@ -2023,6 +2248,9 @@ def send_dialogue_message(
                 session.current_phase = "practice"
                 prompt = (
                     "CRITICAL CHECKING RULE: Treat the latest user message as the answer to the exercise most recently assigned by the teacher. First evaluate that exact answer and explicitly say whether it is correct or incorrect, show the correction when needed, and briefly explain why. Only after that may you give one next exercise. Never replace evaluation of the latest answer with a new exercise, and never ask the learner to resend the same answer.\n"
+                    "PREREQUISITE RULE: Keep every explanation, correction, and exercise strictly inside grammar explicitly taught in the current lesson theory or earlier completed lessons. Never require or penalize a case, conjugation, declension, or word-form change that has not been explained yet. A form appearing incidentally in an example does not make its hidden grammar rule available. Do not jump ahead to later course topics. If a natural sentence would require future grammar, choose a different sentence pattern using only taught forms.\n"
+                    "EXERCISE WORD-BANK RULE: Whenever an exercise asks the learner to compose a sentence, name objects, list nouns, or make adjective-noun agreement, include a visible ready-to-use bank of 4-8 Slovak nouns. For each noun provide grammatical gender (m./f./n.) and a Russian translation. Prefer vocabulary from the current lesson and add suitable new words when needed. The learner must not have to invent unknown vocabulary from memory. Present the bank before the task, for example: obchod (m.) — магазин; kniha (f.) — книга.\n"
+                    "ANALYTICS RULE: End the response with exactly one hidden machine-readable line: <mistake-assessment>{\"is_correct\":true|false,\"score\":0-100,\"corrected_answer\":\"...\",\"explanation\":\"...\",\"next_exercise\":\"...\",\"mistake_category\":\"category or null\",\"new_words\":[]}</mistake-assessment>. Use is_correct=false only when the latest learner message is an attempted answer containing a real error. This line is removed before display.\n"
                     "ТЫ ВЕДЕШЬ СОСТОЯНИЕ УРОКА. Серверные данные ниже — источник истины.\n"
                     f"Текущая фаза: {session.current_phase}.\n"
                     f"Модуль: {module.title}. Урок: {current_lesson.title}. ID урока: {current_lesson.id}.\n"
@@ -2046,8 +2274,27 @@ def send_dialogue_message(
                         status_code=503,
                         detail=f"Tutor provider unavailable: {error}",
                     ) from error
+                response_text, dialogue_assessment = _extract_dialogue_assessment(response_text)
 
     if current_lesson is not None:
+        if dialogue_assessment is not None and not dialogue_assessment.is_correct:
+            mistake = _record_mistake(
+                db,
+                course_id=current_lesson.module.course_id,
+                lesson_id=current_lesson.id,
+                source="dialogue",
+                category=dialogue_assessment.mistake_category or "dialogue",
+                original_answer=request.message,
+                corrected_answer=dialogue_assessment.corrected_answer,
+                explanation=dialogue_assessment.explanation,
+            )
+            _save_vocabulary(
+                db,
+                current_lesson.module.course_id,
+                current_lesson.id,
+                dialogue_assessment.new_words,
+                mistake.id,
+            )
         _save_content_vocabulary(
             db,
             current_lesson,

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.main import app, get_tutor_provider
 from app.tutor import TutorContext
 
@@ -67,6 +69,22 @@ class HistoryCaptureProvider(FakeTutorProvider):
         return super().respond(context)
 
 
+class DuplicateVocabularyProvider:
+    def respond(self, context: TutorContext) -> str:
+        return "dom — дом.\ndom — жилище."
+
+
+class DialogueMistakeProvider:
+    def respond(self, context: TutorContext) -> str:
+        return (
+            "Нужно исправить форму: **dobrý priateľ**.\n"
+            '<mistake-assessment>{"is_correct":false,"score":55,'
+            '"corrected_answer":"To je dobrý priateľ.","explanation":"Нужно согласовать слова.",'
+            '"next_exercise":"Составь ещё одну фразу.","mistake_category":"agreement",'
+            '"new_words":[]}</mistake-assessment>'
+        )
+
+
 def test_tutor_message_uses_learning_context(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
 
@@ -81,6 +99,36 @@ def test_tutor_message_rejects_empty_message(client):
     response = client.post("/api/v1/tutor/message", json={"message": "  "})
 
     assert response.status_code == 422
+
+
+def test_codex_status_reports_missing_cli(client, monkeypatch):
+    monkeypatch.setattr("app.tutor.resolve_codex_executable", lambda _: None)
+
+    response = client.get("/api/v1/codex/status")
+
+    assert response.status_code == 200
+    assert response.json()["installed"] is False
+    assert response.json()["authenticated"] is False
+
+
+def test_codex_login_returns_existing_authenticated_status(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.tutor.resolve_codex_executable",
+        lambda _: Path(r"C:\Tools\codex.cmd"),
+    )
+
+    class Result:
+        returncode = 0
+        stdout = b"Logged in using ChatGPT"
+        stderr = b""
+
+    monkeypatch.setattr("app.tutor.subprocess.run", lambda *args, **kwargs: Result())
+
+    response = client.post("/api/v1/codex/login")
+
+    assert response.status_code == 200
+    assert response.json()["installed"] is True
+    assert response.json()["authenticated"] is True
 
 
 def test_lesson_answer_is_saved_and_checked(client):
@@ -171,9 +219,11 @@ def test_next_mistake_and_homework_are_available(client):
 
 
 def test_homework_can_be_submitted_and_checked(client):
-    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    provider = HistoryCaptureProvider()
+    app.dependency_overrides[get_tutor_provider] = lambda: provider
     homework = client.post("/api/v1/homework/generate", json={"lesson_id": 1})
     homework_id = homework.json()["id"]
+    generation_prompt = provider.prompts[-1]
 
     response = client.post(
         f"/api/v1/homework/{homework_id}/submit",
@@ -186,6 +236,35 @@ def test_homework_can_be_submitted_and_checked(client):
     assert response.json()["status"] == "checked"
     assert response.json()["assessment"]["is_correct"] is True
     assert listed.json()[0]["submitted_answer"] == "Dobrý deň"
+    assert "CURRENT LESSON THEORY — HARD GRAMMAR BOUNDARY" in generation_prompt
+    assert "Do not jump ahead to later course topics" in generation_prompt
+    assert "CURRENT LESSON THEORY — HARD GRADING BOUNDARY" in provider.prompts[-1]
+    assert "Do not deduct points" in provider.prompts[-1]
+
+
+def test_homework_mistake_is_added_to_shared_analytics(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    homework = client.post("/api/v1/homework/generate", json={"lesson_id": 1})
+    app.dependency_overrides[get_tutor_provider] = lambda: VocabularyTutorProvider()
+
+    response = client.post(
+        f"/api/v1/homework/{homework.json()['id']}/submit",
+        json={"answer": "Dobry den"},
+    )
+    mistakes = client.get("/api/v1/progress/mistakes").json()
+    homework_mistake = next(item for item in mistakes if item["source"] == "homework")
+
+    assert response.status_code == 200
+    assert homework_mistake["original_answer"] == "Dobry den"
+    assert homework_mistake["lesson_id"] == 1
+    assert homework_mistake["practice_count"] == 0
+
+    practiced = client.post(
+        f"/api/v1/progress/mistakes/{homework_mistake['id']}/practice"
+    )
+
+    assert practiced.status_code == 200
+    assert practiced.json()["practice_count"] == 1
 
 
 def test_new_words_are_saved_and_can_be_reviewed(client):
@@ -275,6 +354,36 @@ def test_dialogue_session_persists_history_and_progress_command(client):
     assert resumed.json()["current_lesson_title"] == "Представление себя"
 
 
+def test_dialogue_deduplicates_vocabulary_from_one_agent_response(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: DuplicateVocabularyProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session.json()['session_id']}/messages",
+        json={"message": "Покажи пример"},
+    )
+    vocabulary = client.get("/api/v1/progress/vocabulary").json()
+
+    assert response.status_code == 200
+    assert len([item for item in vocabulary if item["word"].casefold() == "dom"]) == 1
+
+
+def test_dialogue_mistake_marker_is_hidden_and_added_to_analytics(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: DialogueMistakeProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+
+    response = client.post(
+        f"/api/v1/dialogue/sessions/{session.json()['session_id']}/messages",
+        json={"message": "готов к упражнению"},
+    )
+    mistakes = client.get("/api/v1/progress/mistakes").json()
+
+    assert response.status_code == 200
+    assert "<mistake-assessment>" not in response.json()["response"]
+    assert mistakes[0]["source"] == "dialogue"
+    assert mistakes[0]["category"] == "agreement"
+
+
 def test_dialogue_practice_context_contains_current_message(client):
     provider = HistoryCaptureProvider()
     app.dependency_overrides[get_tutor_provider] = lambda: provider
@@ -295,6 +404,10 @@ def test_dialogue_practice_context_contains_current_message(client):
 
     assert response.status_code == 200
     assert "CURRENT-LATEST-ANSWER" in provider.prompts[-1]
+    assert "EXERCISE WORD-BANK RULE" in provider.prompts[-1]
+    assert "grammatical gender" in provider.prompts[-1]
+    assert "PREREQUISITE RULE" in provider.prompts[-1]
+    assert "Do not jump ahead to later course topics" in provider.prompts[-1]
 
 
 def test_dialogue_answer_is_saved_on_matching_exercise(client):

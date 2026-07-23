@@ -115,11 +115,14 @@ class Mistake(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(30), default="exercise", index=True)
     category: Mapped[str] = mapped_column(String(100))
     original_answer: Mapped[str] = mapped_column(Text)
     corrected_answer: Mapped[str] = mapped_column(Text)
     explanation: Mapped[str] = mapped_column(Text)
     mistake_count: Mapped[int] = mapped_column(Integer, default=1)
+    practice_count: Mapped[int] = mapped_column(Integer, default=0)
     last_mistake_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
