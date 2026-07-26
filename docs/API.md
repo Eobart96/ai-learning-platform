@@ -1,54 +1,26 @@
 # API
 
-Базовый префикс:
+Актуализировано: 2026-07-26. Базовый префикс — `/api/v1`.
+Полная интерактивная схема доступна на `http://127.0.0.1:8000/docs`.
 
-```text
-/api/v1
-```
+## Служебные маршруты
 
-## Authentication
+- `GET /health` — состояние backend;
+- `GET /api/v1/codex/status` — доступность и авторизация Codex CLI;
+- `POST /api/v1/codex/login` — запуск официального входа Codex;
+- `POST /api/v1/tutor/message` — одиночная структурированная проверка AI.
 
-### POST /auth/register
+## Курс и уроки
 
-Создание пользователя.
+- `GET /api/v1/courses` — список курсов;
+- `GET /api/v1/lessons/{lesson_id}` — теория, упражнения и последние ответы;
+- `GET /api/v1/lessons/{lesson_id}/vocabulary` — слова урока;
+- `POST /api/v1/lessons/{lesson_id}/answer` — проверка и сохранение ответа;
+- `POST /api/v1/lessons/{lesson_id}/complete` — завершение урока;
+- `GET /api/v1/roadmap` — roadmap A1 по модулям;
+- `GET /api/v1/roadmap/levels` — секции A1, A2, B1 и B2.
 
-### POST /auth/login
-
-Получение access token.
-
-### GET /auth/me
-
-Получение профиля текущего пользователя.
-
-## Courses
-
-### GET /courses
-
-Список доступных курсов.
-
-### GET /courses/{course_id}
-
-Информация о курсе.
-
-### POST /courses/{course_id}/enroll
-
-Запись на курс.
-
-## Lessons
-
-### GET /lessons/{lesson_id}
-
-Получение урока.
-
-### POST /lessons/{lesson_id}/start
-
-Создание попытки прохождения.
-
-### POST /lessons/{lesson_id}/answer
-
-Отправка ответа.
-
-Пример:
+Пример ответа на упражнение:
 
 ```json
 {
@@ -57,99 +29,43 @@
 }
 ```
 
-Ответ:
+## Модульные тесты
 
-```json
-{
-  "is_correct": false,
-  "score": 70,
-  "corrected_answer": "Mám päť jabĺk.",
-  "mistakes": [
-    {
-      "category": "noun_after_number",
-      "original": "jablk",
-      "corrected": "jabĺk",
-      "explanation": "После числительных от пяти используется соответствующая форма множественного числа."
-    }
-  ],
-  "next_task": "Составь предложение с числом šesť."
-}
-```
+- `GET /api/v1/modules/{module_id}/final-test` — тест и история попыток;
+- `POST /api/v1/modules/{module_id}/final-test/submit` — проверка теста;
+- проходной балл — 70/100, ошибки вопросов сохраняются в общем журнале.
 
-### POST /lessons/{lesson_id}/complete
+## Прогресс и ошибки
 
-Завершение урока.
+- `GET /api/v1/progress` — завершённые темы, ответы, активные и исправленные ошибки;
+- `POST /api/v1/progress/reset` — подтверждаемый сброс локального прогресса;
+- `GET /api/v1/progress/mistakes` — только активные ошибки;
+- `GET /api/v1/progress/mistakes/next` — следующая ошибка для повторения;
+- `POST /api/v1/progress/mistakes/{mistake_id}/practice` — учёт отработки;
+- `POST /api/v1/progress/mistakes/{mistake_id}/resolve` — подтверждение исправления.
 
-## AI
+## Диалоги
 
-### POST /ai/chat
+- `POST /api/v1/dialogue/sessions` — новая сессия; принимает `title` и `lesson_id`;
+- `GET /api/v1/dialogue/sessions` — список сессий;
+- `GET /api/v1/dialogue/sessions/{session_id}` — история сессии;
+- `POST /api/v1/dialogue/sessions/{session_id}/messages` — сообщение преподавателю;
+- `POST /api/v1/dialogue/sessions/{session_id}/select-lesson` — выбор темы;
+- `POST /api/v1/dialogue/sessions/{session_id}/clear` — очистка сообщений;
+- `DELETE /api/v1/dialogue/sessions/{session_id}` — удаление диалога.
 
-Диалог с преподавателем.
+## Словарь, дневник и домашние задания
 
-### POST /ai/check-answer
+- `GET /api/v1/progress/vocabulary` — каталог слов;
+- `GET /api/v1/progress/vocabulary/next` и `/due` — карточки повторения;
+- `POST /api/v1/progress/vocabulary/{item_id}/save` — сохранить слово;
+- `POST /api/v1/progress/vocabulary/{item_id}/review` — сохранить повторение;
+- `GET /api/v1/diary/today` — вопрос дня;
+- `POST /api/v1/diary/entries` — проверить и сохранить запись;
+- `GET /api/v1/diary/entries` — история;
+- `GET /api/v1/diary/weekly-summary` — недельная сводка;
+- `POST /api/v1/homework/generate` — создать домашнее задание;
+- `GET /api/v1/homework` — список заданий;
+- `POST /api/v1/homework/{homework_id}/submit` — проверка ответа.
 
-Проверка ответа.
-
-### POST /ai/generate-homework
-
-Генерация домашнего задания.
-
-## Progress
-
-### GET /progress
-
-Общий прогресс.
-
-### GET /progress/topics
-
-Прогресс по темам.
-
-### GET /progress/mistakes
-
-Повторяющиеся ошибки.
-
-## Homework
-
-### GET /homework
-
-Список заданий.
-
-### GET /homework/{homework_id}
-
-Конкретное задание.
-
-### POST /homework/{homework_id}/submit
-
-Отправка решения.
-
-## Vocabulary
-
-### GET /vocabulary
-
-Словарь пользователя.
-
-### POST /vocabulary
-
-Добавление слова.
-
-### GET /vocabulary/review
-
-Карточки для повторения.
-
-### POST /vocabulary/{word_id}/review
-
-Сохранение результата повторения.
-
-## Diary
-
-### POST /diary
-
-Создание записи.
-
-### GET /diary
-
-История записей.
-
-### GET /diary/{entry_id}
-
-Конкретная запись.
+Авторизация, JWT и многопользовательские маршруты в локальном MVP отсутствуют.

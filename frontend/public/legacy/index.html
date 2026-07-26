@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Learning Platform</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=30" />
+    <link rel="stylesheet" href="styles.css?v=32" />
+    <link rel="stylesheet" href="dark.css?v=3" />
   </head>
   <body>
     <main class="shell">
@@ -28,6 +29,7 @@
             <button type="button" class="main-nav-link" data-view-link="diary">Дневник</button>
             <button type="button" class="main-nav-link" data-view-link="homework">Домашнее задание</button>
           </nav>
+          <button id="theme-toggle-button" class="secondary compact theme-toggle-button" type="button">☾ Тёмная тема</button>
           <span id="status" class="status">Загрузка...</span>
           <a class="api-link" href="/docs" target="_blank">API</a>
           <button id="reset-progress-button" class="secondary compact" type="button">Начать сначала</button>
@@ -171,6 +173,43 @@
         </aside>
       </div>
     </main>
-    <script src="/ui/app.js?v=39"></script>
+    <script>
+      (() => {
+        const themeStorageKey = "ai-learning-platform-theme";
+        const themeToggleButton = document.getElementById("theme-toggle-button");
+        const isEmbedded = new URLSearchParams(window.location.search).get("embedded") === "1";
+        document.body.classList.toggle("embedded", isEmbedded);
+
+        const applyTheme = (theme, persist = false) => {
+          document.documentElement.dataset.theme = theme;
+          themeToggleButton.textContent = theme === "dark" ? "☀ Светлая тема" : "☾ Тёмная тема";
+          themeToggleButton.setAttribute(
+            "aria-label",
+            theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему",
+          );
+          if (persist) {
+            window.localStorage.setItem(themeStorageKey, theme);
+            window.parent.postMessage({ type: "learning-platform-theme-change", theme }, window.location.origin);
+          }
+        };
+
+        const storedTheme = window.localStorage.getItem(themeStorageKey);
+        const initialTheme = storedTheme === "dark" || storedTheme === "light"
+          ? storedTheme
+          : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        applyTheme(initialTheme);
+
+        themeToggleButton.addEventListener("click", () => {
+          applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+        });
+
+        window.addEventListener("message", (event) => {
+          if (event.data?.type === "learning-platform-theme") {
+            applyTheme(event.data.theme);
+          }
+        });
+      })();
+    </script>
+    <script src="app.js?v=46"></script>
   </body>
 </html>

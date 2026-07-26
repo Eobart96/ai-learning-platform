@@ -1,167 +1,60 @@
 # Структура базы данных
 
-## users
+Актуализировано: 2026-07-26. Локальный MVP использует SQLite и одного
+неавторизованного пользователя, поэтому таблиц `users` и `enrollments` пока нет.
 
-- id
-- email
-- password_hash
-- name
-- interface_language
-- created_at
-- updated_at
+## Контент курса
 
-## courses
+- `courses`: slug, название, предмет, язык, язык преподавания и уровень;
+- `modules`: курс, slug, название и порядок;
+- `lessons`: модуль, slug, название, порядок и теория;
+- `exercises`: урок, тип, вопрос, инструкция, правильный ответ и объяснение.
 
-- id
-- slug
-- title
-- description
-- subject
-- language
-- difficulty_level
-- status
-- created_at
+## Учебный прогресс
 
-## modules
+- `lesson_attempts`: урок, балл, завершение и время начала;
+- `user_answers`: упражнение, попытка, ответ, корректность, балл и AI feedback;
+- `module_test_attempts`: модуль, балл, проходной статус, JSON ответов и дата;
+- `module_test_answers`: вопрос теста, ожидаемый и отправленный ответы, корректность.
 
-- id
-- course_id
-- title
-- description
-- order_number
+## Ошибки
 
-## lessons
+`mistakes` хранит:
 
-- id
-- module_id
-- slug
-- title
-- lesson_type
-- theory
-- instructions
-- order_number
+- `course_id`, необязательные `lesson_id` и `exercise_id`;
+- источник ошибки и категорию;
+- исходный и исправленный ответы;
+- объяснение;
+- `mistake_count` и `practice_count`;
+- `resolved` — подтверждена ли отработка;
+- дату последней ошибки.
 
-## exercises
+Активный список API возвращает только записи с `resolved = false`. Повторная
+ошибка снова делает существующую запись активной.
 
-- id
-- lesson_id
-- exercise_type
-- question
-- correct_answer
-- explanation
-- difficulty
-- metadata_json
+## Дополнительные функции
 
-## enrollments
+- `vocabulary_items`: слово, перевод, пример, связь с уроком/ошибкой, сохранение,
+  интервалы и даты повторения;
+- `homework`: описание, статус, ответ, балл, AI feedback и даты;
+- `diary_entries`: вопрос, исходный и исправленный текст, объяснение, балл и связь
+  с ошибкой;
+- `learning_sessions`: название диалога, текущий урок, фаза, статус и даты;
+- `dialogue_messages`: сессия, роль, содержимое и дата.
 
-- id
-- user_id
-- course_id
-- current_module_id
-- current_lesson_id
-- status
-- started_at
-- completed_at
-
-## lesson_attempts
-
-- id
-- user_id
-- lesson_id
-- score
-- completed
-- started_at
-- completed_at
-
-## user_answers
-
-- id
-- user_id
-- exercise_id
-- lesson_attempt_id
-- user_answer
-- is_correct
-- score
-- ai_feedback
-- created_at
-
-## mistakes
-
-- id
-- user_id
-- course_id
-- category
-- original_answer
-- corrected_answer
-- explanation
-- mistake_count
-- last_mistake_at
-
-## homework
-
-- id
-- user_id
-- course_id
-- lesson_id
-- title
-- description
-- due_date
-- status
-- score
-- ai_feedback
-- created_at
-
-## vocabulary
-
-- id
-- user_id
-- course_id
-- word
-- translation
-- example
-- correct_answers
-- incorrect_answers
-- ease_factor
-- interval_days
-- next_review_at
-
-## diary_entries
-
-- id
-- user_id
-- course_id
-- original_text
-- corrected_text
-- ai_feedback
-- mood
-- entry_date
-- created_at
-
-## ai_interactions
-
-- id
-- user_id
-- course_id
-- lesson_id
-- interaction_type
-- model
-- prompt_version
-- input_tokens
-- output_tokens
-- created_at
-
-## Связи
+## Основные связи
 
 ```text
-Course -> Modules -> Lessons -> Exercises
-User -> Enrollments -> Course
-User -> Lesson Attempts -> Answers
-User -> Mistakes
-User -> Homework
-User -> Vocabulary
-User -> Diary Entries
+Course -> Module -> Lesson -> Exercise
+Lesson -> LessonAttempt -> UserAnswer
+Module -> ModuleTestAttempt -> ModuleTestAnswer
+Course/Lesson/Exercise -> Mistake -> VocabularyItem
+Lesson -> Homework / DiaryEntry / LearningSession -> DialogueMessage
 ```
 
-## Миграции
+## Изменение схемы
 
-Использовать Alembic. Каждое изменение схемы должно оформляться отдельной миграцией.
+Новая база создаётся через `Base.metadata.create_all`. Для уже существующей
+локальной SQLite `ensure_sqlite_schema()` добавляет совместимые столбцы через
+`ALTER TABLE`. Alembic и PostgreSQL запланированы перед многопользовательским
+production-развертыванием.

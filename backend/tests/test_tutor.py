@@ -183,7 +183,14 @@ def test_progress_and_mistakes_are_available_after_answer(client):
     assert progress.status_code == 200
     assert progress.json()["total_answers"] == 1
     assert progress.json()["total_mistakes"] == 1
+    assert progress.json()["resolved_mistakes"] == 0
     assert mistakes.json()[0]["mistake_count"] == 1
+
+    resolved = client.post(f"/api/v1/progress/mistakes/{mistakes.json()[0]['id']}/resolve")
+    assert resolved.status_code == 200
+    assert client.get("/api/v1/progress/mistakes").json() == []
+    assert client.get("/api/v1/progress").json()["resolved_mistakes"] == 1
+    assert client.get("/api/v1/lessons/1").json()["exercises"][0]["is_resolved"] is True
 
 
 def test_lesson_can_be_completed_after_answer(client):
@@ -427,6 +434,8 @@ def test_dialogue_answer_is_saved_on_matching_exercise(client):
 
     assert response.status_code == 200
     assert "Правильно" in response.json()["response"]
+    assert "Следующее упражнение" not in response.json()["response"]
+    assert "следующее упражнение" in response.json()["response"]
     assert lesson.status_code == 200
     exercise = lesson.json()["exercises"][0]
     assert exercise["submitted_answer"] == "Volám sa Sergej."
@@ -451,6 +460,19 @@ def test_dialogue_session_list_returns_recent_sessions_with_message_counts(clien
     assert first.json()["session_id"] in by_id
     assert second.json()["session_id"] in by_id
     assert by_id[first.json()["session_id"]]["message_count"] == 2
+
+
+def test_dialogue_session_can_have_a_custom_title_and_lesson(client):
+    response = client.post(
+        "/api/v1/dialogue/sessions",
+        json={"title": "Исправления ошибок", "lesson_id": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "Исправления ошибок"
+    assert response.json()["current_lesson_id"] == 1
+    listed = client.get("/api/v1/dialogue/sessions").json()
+    assert listed[0]["title"] == "Исправления ошибок"
 
 
 def test_dialogue_session_can_be_deleted_without_resetting_course(client):

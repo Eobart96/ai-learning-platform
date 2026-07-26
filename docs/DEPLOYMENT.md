@@ -1,44 +1,39 @@
 # Развертывание
 
-## Рекомендуемая схема MVP
+Актуализировано: 2026-07-26.
 
-- Frontend: Vercel
-- Backend: Railway или Render
-- Database: Supabase или Neon
-- Repository: GitHub
+## Текущий поддерживаемый режим
 
-## Переменные окружения
+Проект пока предназначен для локального Windows-запуска одного пользователя:
+
+1. `install.cmd` устанавливает backend и frontend зависимости;
+2. `start_backend.cmd` запускает FastAPI на `127.0.0.1:8000`;
+3. `start_frontend.cmd` запускает Next.js на `127.0.0.1:3000`;
+4. SQLite хранится локально в `backend/data/app.db`.
+
+## Переменные окружения MVP
 
 ```text
-DATABASE_URL=
+DATABASE_URL=sqlite:///./data/app.db
+COURSE_PATH=../course-content/slovak-a1/course.yaml
+TUTOR_PROVIDER=codex
 OPENAI_API_KEY=
-JWT_SECRET=
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-FRONTEND_URL=
-ENVIRONMENT=development
 ```
 
-## Порядок развертывания
+`OPENAI_API_KEY` требуется только для `TUTOR_PROVIDER=openai`. Для режима
+`codex` нужна локальная авторизация `codex.cmd login`.
 
-1. Создать облачную PostgreSQL.
-2. Настроить backend.
-3. Добавить переменные окружения.
-4. Запустить миграции.
-5. Проверить API.
-6. Развернуть frontend.
-7. Указать URL backend.
-8. Проверить CORS.
-9. Создать тестового пользователя.
-10. Провести smoke test.
+## Production — ещё не реализовано
 
-## Production checklist
+GitHub Issue #7 остаётся открытым. До production необходимо:
 
-- секреты не находятся в GitHub;
-- DEBUG отключен;
-- HTTPS включен;
-- CORS ограничен;
-- миграции выполнены;
-- база резервируется;
-- логирование включено;
-- лимиты AI установлены.
+1. добавить Alembic и миграции;
+2. перейти на PostgreSQL после появления нескольких пользователей;
+3. реализовать авторизацию и разделение данных;
+4. добавить Docker и CI/CD;
+5. определить hosting frontend/backend и CORS;
+6. настроить HTTPS, секреты, логирование, лимиты AI и резервное копирование;
+7. провести отдельный production smoke test.
+
+Vercel, Railway/Render/Fly.io и Supabase/Neon остаются вариантами, а не
+утверждённой текущей инфраструктурой.

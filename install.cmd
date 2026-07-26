@@ -41,42 +41,60 @@ if not exist "backend\requirements.txt" (
 if exist "backend\.venv\Scripts\python.exe" (
     backend\.venv\Scripts\python.exe --version >nul 2>&1
     if errorlevel 1 (
-        echo [1/3] Existing virtual environment is stale; recreating it...
+        echo [1/4] Existing virtual environment is stale; recreating it...
         rmdir /S /Q "backend\.venv"
         if errorlevel 1 goto :failed
     )
 )
 
 if not exist "backend\.venv\Scripts\python.exe" (
-    echo [1/3] Creating backend virtual environment...
+    echo [1/4] Creating backend virtual environment...
     python -m venv backend\.venv
     if errorlevel 1 goto :failed
 ) else (
-    echo [1/3] Virtual environment already exists.
+    echo [1/4] Virtual environment already exists.
 )
 
-echo [2/3] Installing Python dependencies...
+echo [2/4] Installing Python dependencies...
 backend\.venv\Scripts\python.exe -m pip install --upgrade pip
 if errorlevel 1 goto :failed
 backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 if errorlevel 1 goto :failed
 
+where npm.cmd >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js with npm was not found.
+    echo Install current Node.js LTS from https://nodejs.org/ then run this file again.
+    pause
+    exit /b 1
+)
+
+echo [3/4] Installing Next.js frontend dependencies...
+pushd frontend
+call npm.cmd install
+if errorlevel 1 (
+    popd
+    goto :failed
+)
+popd
+
 if not exist ".env" (
     if exist ".env.example" (
-        echo [3/3] Creating .env from .env.example...
+        echo [4/4] Creating .env from .env.example...
         copy /Y ".env.example" ".env" >nul
     ) else (
-        echo [3/3] .env.example not found; skipping .env creation.
+        echo [4/4] .env.example not found; skipping .env creation.
     )
 ) else (
-    echo [3/3] Existing .env preserved.
+    echo [4/4] Existing .env preserved.
 )
 
 echo.
 echo Installation completed successfully.
 echo.
-echo Start the application with: start_backend.cmd
-echo Open in the browser:       http://127.0.0.1:8000/ui/
+echo Start the backend with:     start_backend.cmd
+echo Start the Next.js UI with:  start_frontend.cmd
+echo Open in the browser:        http://127.0.0.1:3000/
 echo.
 echo Optional AI setup:
 echo   Codex mode:  cmd.exe /d /s /c "codex.cmd login"

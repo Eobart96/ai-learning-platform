@@ -34,16 +34,18 @@ AI Learning Platform
 
 - Python;
 - FastAPI;
-- PostgreSQL;
+- SQLite;
 - SQLAlchemy;
 - React;
 - Next.js;
 - TypeScript;
-- OpenAI API;
+- Codex CLI и OpenAI API;
 - REST API;
 - Git;
-- Docker;
 - проектирование образовательных систем.
+
+PostgreSQL, Docker и production deployment входят в следующий этап и не
+выдаются за уже реализованные части проекта.
 
 ## Что показать
 

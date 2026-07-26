@@ -34,23 +34,21 @@ Backend:
 - Python;
 - FastAPI;
 - SQLAlchemy;
-- Alembic;
 - SQLite на раннем MVP;
-- PostgreSQL после появления нескольких пользователей;
 - Pydantic;
-- OpenAI API.
+- Codex CLI или OpenAI API;
+- Alembic и PostgreSQL после появления нескольких пользователей.
 
 Frontend:
 - Next.js;
 - React;
 - TypeScript;
-- Tailwind CSS.
+- CSS.
 
 Infrastructure:
-- Docker позже;
-- GitHub Actions позже;
-- Vercel для frontend;
-- Railway, Render или Fly.io для backend.
+- локальный Windows-запуск для текущего MVP;
+- Docker и GitHub Actions позже;
+- Vercel и Railway/Render/Fly.io рассматриваются для production, но пока не выбраны.
 
 ## Ключевые принципы
 

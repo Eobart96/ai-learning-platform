@@ -241,9 +241,9 @@ function renderMarkdown(value) {
   return output.join("");
 }
 
-function renderRoadmap(levels) {
+function renderRoadmap(levels, mistakes = state.mistakes) {
   state.roadmap = levels;
-  renderExerciseTopicSelector(levels);
+  renderExerciseTopicSelector(levels, mistakes);
   if (!levels.length) {
     elements.roadmap.innerHTML = '<p class="empty">Роадмап пока пуст.</p>';
     return;
@@ -256,8 +256,8 @@ function renderRoadmap(levels) {
     }
     const modules = level.modules.map((module) => {
       const lessons = module.lessons.map((lesson, index) => {
-      const icon = lesson.status === "completed" ? "✓" : lesson.status === "current" ? "•" : index + 1;
       const disabled = lesson.status === "upcoming" ? " disabled" : "";
+      const icon = lesson.status === "completed" ? "✓" : lesson.status === "current" ? "•" : index + 1;
       return '<div class="roadmap-item ' + lesson.status + '">' +
         '<span class="roadmap-dot">' + icon + '</span>' +
         '<button type="button" data-lesson-id="' + lesson.id + '"' + disabled + '>' +
@@ -284,12 +284,25 @@ function renderRoadmap(levels) {
   });
 }
 
-function renderExerciseTopicSelector(levels) {
-  const lessons = levels.flatMap((level) => level.modules.flatMap((module) => module.lessons))
-    .filter((lesson) => lesson.status !== "upcoming");
-  elements.exerciseTopicSelect.innerHTML = lessons.map((lesson) =>
-    '<option value="' + lesson.id + '"' + (lesson.id === state.currentLessonId ? " selected" : "") + '>' + escapeHtml(lesson.title) + '</option>'
-  ).join("");
+function renderExerciseTopicSelector(levels, mistakes = state.mistakes) {
+  const mistakesByLesson = mistakes.reduce((counts, mistake) => {
+    if (mistake.lesson_id) counts[mistake.lesson_id] = (counts[mistake.lesson_id] || 0) + 1;
+    return counts;
+  }, {});
+  const lessons = levels.flatMap((level) => level.modules.flatMap((module) => module.lessons));
+  elements.exerciseTopicSelect.innerHTML = lessons.map((lesson) => {
+    const errorCount = mistakesByLesson[lesson.id] || 0;
+    const status = errorCount
+      ? (lesson.status === "completed" ? "✓ Выполнено · требует внимания" : "⚠ Требует внимания")
+      : lesson.status === "completed" ? "✓ Выполнено"
+      : lesson.status === "current" ? "● Текущая тема"
+      : "○ Не начато";
+    const disabled = lesson.status === "upcoming" ? " disabled" : "";
+    const selected = lesson.id === state.currentLessonId ? " selected" : "";
+    const errors = errorCount ? " · ошибок к исправлению: " + errorCount : "";
+    return '<option value="' + lesson.id + '"' + selected + disabled + '>' +
+      status + " — " + escapeHtml(lesson.title) + errors + '</option>';
+  }).join("");
 }
 
 async function selectExerciseTopic(lessonId) {
@@ -359,7 +372,7 @@ function renderLesson(lesson) {
       "<p>" + escapeHtml(exercise.question) + "</p>" +
       (exercise.instruction ? '<p class="muted">' + escapeHtml(exercise.instruction) + "</p>" : "") +
       (exercise.submitted_answer ? '<div class="exercise-answer ' + (exercise.is_completed ? "correct" : "pending") + '"><strong>' +
-        (exercise.is_completed ? "Пройдено" : "Последний ответ") + '</strong><span>' + escapeHtml(exercise.submitted_answer) +
+        (exercise.is_resolved ? "Исправлено" : exercise.is_completed ? "Пройдено" : "Последний ответ") + '</strong><span>' + escapeHtml(exercise.submitted_answer) +
         (exercise.score !== null && exercise.score !== undefined ? " · " + exercise.score + "/100" : "") + "</span></div>" : "");
     card.addEventListener("click", () => {
       state.selectedExercise = exercise;
@@ -375,6 +388,7 @@ function renderProgress(progress) {
     [progress.completed_lessons, "тем пройдено"],
     [progress.total_answers, "ответов"],
     [progress.total_mistakes, "ошибок"],
+    [progress.resolved_mistakes, "исправлено ошибок"],
     [progress.average_score ?? "—", "средний балл"],
   ];
   elements.progress.innerHTML = values.map((item) =>
@@ -404,7 +418,8 @@ function renderMistakes(mistakes) {
       '</p><p><b>Исправление</b>' + escapeHtml(mistake.corrected_answer) + '</p></div>' : '') +
       '<p>' + escapeHtml(mistake.explanation) + '</p>' +
       (analyticsView ? '<div class="mistake-actions"><span>Отработок: ' + mistake.practice_count +
-      '</span><button type="button" data-practice-mistake-id="' + mistake.id + '">Отработать</button></div>' : '') +
+      '</span><div class="mistake-action-buttons"><button type="button" data-practice-mistake-id="' + mistake.id + '">Отработать</button>' +
+      '<button type="button" class="resolve-mistake-button" data-resolve-mistake-id="' + mistake.id + '">Подтвердить исправление</button></div></div>' : '') +
       '</article>').join("")
     : '<p class="empty">Ошибок для повторения пока нет.</p>';
   elements.mistakes.querySelectorAll("[data-practice-mistake-id]").forEach((button) => {
@@ -414,12 +429,13 @@ function renderMistakes(mistakes) {
       button.disabled = true;
       try {
         await request("/api/v1/progress/mistakes/" + mistake.id + "/practice", { method: "POST" });
-        if (mistake.lesson_id && state.sessionId) {
-          await request("/api/v1/dialogue/sessions/" + state.sessionId + "/select-lesson", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lesson_id: mistake.lesson_id }),
-          });
+        const dialogue = await request("/api/v1/dialogue/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Исправления ошибок", lesson_id: mistake.lesson_id }),
+        });
+        await openDialogueSession(dialogue.session_id);
+        if (mistake.lesson_id) {
           state.currentLessonId = mistake.lesson_id;
           localStorage.setItem("learning_lesson_id", String(mistake.lesson_id));
         }
@@ -429,6 +445,22 @@ function renderMistakes(mistakes) {
           ". Объяснение: " + mistake.explanation +
           ". Сначала коротко напомни правило, затем дай одно новое упражнение строго в рамках уже пройденной темы.";
         elements.chatForm.requestSubmit();
+      } catch (error) {
+        setStatus(error.message, true);
+        button.disabled = false;
+      }
+    });
+  });
+  elements.mistakes.querySelectorAll("[data-resolve-mistake-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const mistake = mistakes.find((item) => String(item.id) === button.dataset.resolveMistakeId);
+      if (!mistake || state.isSending) return;
+      if (!window.confirm("Подтвердить, что эта ошибка исправлена?")) return;
+      button.disabled = true;
+      try {
+        await request("/api/v1/progress/mistakes/" + mistake.id + "/resolve", { method: "POST" });
+        await refresh();
+        setStatus("Ошибка отмечена как исправленная.", false);
       } catch (error) {
         setStatus(error.message, true);
         button.disabled = false;
@@ -452,7 +484,7 @@ function renderDialogueHistoryContainer(container, sessions) {
   }
   container.innerHTML = sessions.map((session) => {
     const active = session.session_id === state.sessionId ? " active" : "";
-    const title = session.current_lesson_title || "Курс завершён";
+    const title = session.title || session.current_lesson_title || "Курс завершён";
     const count = session.message_count === 1 ? "1 сообщение" : session.message_count + " сообщений";
     return '<div class="dialogue-history-item' + active + '">' +
       '<button type="button" class="dialogue-history-open" data-dialogue-session-id="' + session.session_id + '">' +
@@ -718,7 +750,8 @@ async function refresh() {
       request("/api/v1/diary/entries"),
       request("/api/v1/dialogue/sessions"),
     ]);
-    renderRoadmap(roadmap);
+    state.mistakes = mistakes;
+    renderRoadmap(roadmap, mistakes);
     renderTestsOverview(roadmap);
     renderLesson(lesson);
     const currentModule = roadmap.flatMap((level) => level.modules).find((module) => module.lessons.some((item) => item.id === state.currentLessonId));
@@ -726,7 +759,6 @@ async function refresh() {
     renderModuleTest(moduleTest);
     renderTopicVocabulary(topicVocabulary);
     renderProgress(progress);
-    state.mistakes = mistakes;
     renderMistakes(mistakes);
     renderVocabulary(vocabulary);
     renderHomework(homework);
@@ -751,18 +783,10 @@ async function loadDialogue() {
     state.currentLessonId = dialogue.current_lesson_id;
     localStorage.setItem("learning_lesson_id", String(state.currentLessonId));
   }
-  elements.dialogueTitle.textContent = dialogue.current_lesson_title || "Курс завершен";
+  elements.dialogueTitle.textContent = dialogue.title || dialogue.current_lesson_title || "Курс завершен";
   elements.dialogueSubtitle.textContent = dialogue.current_lesson_title
     ? "Текущая тема из серверного роадмапа" : "Можно повторить пройденные темы";
   renderChat(dialogue.messages || []);
-  if (!dialogue.messages?.length && dialogue.current_lesson_id) {
-    const result = await sendChatMessage("Начнем урок");
-    const history = await request("/api/v1/dialogue/sessions/" + state.sessionId);
-    renderChat(history.messages);
-    if (result.current_lesson_title) {
-      elements.dialogueTitle.textContent = result.current_lesson_title;
-    }
-  }
   await refresh();
 }
 
@@ -776,7 +800,7 @@ async function openDialogueSession(sessionId) {
       state.currentLessonId = dialogue.current_lesson_id;
       localStorage.setItem("learning_lesson_id", String(state.currentLessonId));
     }
-    elements.dialogueTitle.textContent = dialogue.current_lesson_title || "Курс завершён";
+    elements.dialogueTitle.textContent = dialogue.title || dialogue.current_lesson_title || "Курс завершён";
     elements.dialogueSubtitle.textContent = dialogue.current_lesson_title
       ? "Текущая тема из серверного roadmap" : "Можно повторить пройденные темы";
     renderChat(dialogue.messages || []);
@@ -786,7 +810,7 @@ async function openDialogueSession(sessionId) {
 }
 
 async function deleteDialogueSession(sessionId) {
-  if (state.isSending || !sessionId) return;
+  if (!sessionId) return;
   if (!window.confirm("Удалить историю этого диалога? Прогресс курса сохранится.")) return;
   try {
     await request("/api/v1/dialogue/sessions/" + sessionId, { method: "DELETE" });
@@ -807,23 +831,21 @@ async function createNewDialogue(button = elements.newDialogueButton) {
   try {
     const dialogue = await request("/api/v1/dialogue/sessions", { method: "POST" });
     await openDialogueSession(dialogue.session_id);
-    if (dialogue.current_lesson_id && !state.isSending) {
-      elements.chatInput.value = "Начнем урок";
-      elements.chatForm.requestSubmit();
-    }
   } catch (error) { setStatus(error.message, true); }
   finally { button.disabled = false; }
 }
 
-async function sendChatMessage(message) {
-  const result = await request("/api/v1/dialogue/sessions/" + state.sessionId + "/messages", {
+async function sendChatMessage(message, sessionId = state.sessionId) {
+  const result = await request("/api/v1/dialogue/sessions/" + sessionId + "/messages", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }),
   });
-  if (result.current_lesson_id) {
+  if (sessionId === state.sessionId && result.current_lesson_id) {
     state.currentLessonId = result.current_lesson_id;
     localStorage.setItem("learning_lesson_id", String(state.currentLessonId));
   }
-  elements.dialogueTitle.textContent = result.current_lesson_title || "Курс завершен";
+  if (sessionId === state.sessionId) {
+    elements.dialogueTitle.textContent = result.title || result.current_lesson_title || "Курс завершен";
+  }
   return result;
 }
 
@@ -869,23 +891,25 @@ elements.chatForm.addEventListener("submit", async (event) => {
   const message = elements.chatInput.value.trim();
   if (!message) return;
   const button = elements.chatSubmitButton;
+  const sessionIdAtSend = state.sessionId;
   state.isSending = true;
   button.disabled = true;
-  elements.chatInput.disabled = true;
   elements.chatInput.value = "";
   appendChatMessage("user", message);
   const thinkingMessage = appendThinkingMessage();
   setStatus("Преподаватель думает…", false);
   try {
-    const result = await sendChatMessage(message);
-    const history = await request("/api/v1/dialogue/sessions/" + state.sessionId);
-    renderChat(history.messages);
-    await refresh();
+    const result = await sendChatMessage(message, sessionIdAtSend);
+    if (sessionIdAtSend === state.sessionId) {
+      const history = await request("/api/v1/dialogue/sessions/" + sessionIdAtSend);
+      renderChat(history.messages);
+      await refresh();
+    }
     if (result.progress_saved) setStatus("Прогресс сохранен. Открыта следующая тема.", false);
   } catch (error) {
     setStatus(error.message, true);
     try {
-      const history = await request("/api/v1/dialogue/sessions/" + state.sessionId);
+      const history = await request("/api/v1/dialogue/sessions/" + sessionIdAtSend);
       renderChat(history.messages || []);
     } catch (_) { /* Keep the local error visible if the history cannot be refreshed. */ }
   }
@@ -893,7 +917,6 @@ elements.chatForm.addEventListener("submit", async (event) => {
     if (thinkingMessage.isConnected) thinkingMessage.remove();
     state.isSending = false;
     button.disabled = false;
-    elements.chatInput.disabled = false;
     elements.chatInput.focus();
   }
 });

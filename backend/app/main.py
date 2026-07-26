@@ -64,7 +64,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
-app.mount("/ui", StaticFiles(directory=Path(__file__).resolve().parents[2] / "frontend", html=True), name="ui")
+legacy_frontend_directory = Path(__file__).resolve().parents[2] / "frontend" / "public" / "legacy"
+app.mount("/ui", StaticFiles(directory=legacy_frontend_directory, html=True), name="ui")
 
 
 class TutorMessageRequest(BaseModel):
@@ -89,6 +90,7 @@ class ExerciseResponse(BaseModel):
     instruction: str | None
     submitted_answer: str | None = None
     is_completed: bool = False
+    is_resolved: bool = False
     score: int | None = None
 
 
@@ -118,6 +120,7 @@ class ProgressResponse(BaseModel):
     total_attempts: int
     total_answers: int
     total_mistakes: int
+    resolved_mistakes: int
     average_score: float | None
 
 
@@ -226,6 +229,7 @@ class HomeworkSubmitResponse(HomeworkResponse):
 
 class DialogueSessionResponse(BaseModel):
     session_id: int
+    title: str | None
     current_lesson_id: int | None
     current_lesson_title: str | None
     current_phase: str
@@ -240,6 +244,11 @@ class DialogueSessionListItem(DialogueSessionResponse):
 
 class DialogueMessageRequest(BaseModel):
     message: str
+
+
+class DialogueSessionCreateRequest(BaseModel):
+    title: str | None = None
+    lesson_id: int | None = None
 
 
 class DialogueLessonSelectionRequest(BaseModel):
@@ -401,6 +410,15 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
     latest_answers: dict[int, UserAnswer] = {}
     for answer in answers:
         latest_answers.setdefault(answer.exercise_id, answer)
+    resolved_exercise_ids = set(
+        db.scalars(
+            select(Mistake.exercise_id).where(
+                Mistake.lesson_id == lesson_id,
+                Mistake.exercise_id.is_not(None),
+                Mistake.resolved.is_(True),
+            )
+        ).all()
+    )
     return LessonResponse(
         id=lesson.id,
         slug=lesson.slug,
@@ -413,7 +431,11 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
                 question=exercise.question,
                 instruction=exercise.instruction,
                 submitted_answer=(latest_answers[exercise.id].user_answer if exercise.id in latest_answers else None),
-                is_completed=bool(latest_answers.get(exercise.id) and latest_answers[exercise.id].is_correct),
+                is_completed=bool(
+                    (latest_answers.get(exercise.id) and latest_answers[exercise.id].is_correct)
+                    or exercise.id in resolved_exercise_ids
+                ),
+                is_resolved=exercise.id in resolved_exercise_ids,
                 score=(latest_answers[exercise.id].score if exercise.id in latest_answers else None),
             )
             for exercise in exercises
@@ -495,6 +517,7 @@ def answer_lesson(
             original_answer=request.answer,
             corrected_answer=assessment.corrected_answer,
             explanation=assessment.explanation,
+            exercise_id=exercise.id,
         )
         mistake_id = mistake.id
     _save_vocabulary(db, lesson.module.course_id, lesson.id, assessment.new_words, mistake_id)
@@ -546,12 +569,16 @@ def get_progress(db: Session = Depends(get_db)) -> ProgressResponse:
     total_attempts = db.scalar(select(func.count(LessonAttempt.id)))
     total_answers = db.scalar(select(func.count(UserAnswer.id)))
     total_mistakes = db.scalar(select(func.count(Mistake.id)))
+    resolved_mistakes = db.scalar(
+        select(func.count(Mistake.id)).where(Mistake.resolved.is_(True))
+    )
     average_score = db.scalar(select(func.avg(LessonAttempt.score)))
     return ProgressResponse(
         completed_lessons=completed_lessons or 0,
         total_attempts=total_attempts or 0,
         total_answers=total_answers or 0,
         total_mistakes=total_mistakes or 0,
+        resolved_mistakes=resolved_mistakes or 0,
         average_score=round(float(average_score), 2) if average_score is not None else None,
     )
 
@@ -827,7 +854,9 @@ def submit_module_final_test(
 @app.get("/api/v1/progress/mistakes", response_model=list[MistakeResponse])
 def get_mistakes(db: Session = Depends(get_db)) -> list[MistakeResponse]:
     mistakes = db.scalars(
-        select(Mistake).order_by(Mistake.mistake_count.desc(), Mistake.id)
+        select(Mistake)
+        .where(Mistake.resolved.is_(False))
+        .order_by(Mistake.mistake_count.desc(), Mistake.id)
     ).all()
     return [
         MistakeResponse(
@@ -868,10 +897,34 @@ def start_mistake_practice(mistake_id: int, db: Session = Depends(get_db)) -> Mi
     )
 
 
+@app.post("/api/v1/progress/mistakes/{mistake_id}/resolve", response_model=MistakeResponse)
+def resolve_mistake(mistake_id: int, db: Session = Depends(get_db)) -> MistakeResponse:
+    mistake = db.scalar(select(Mistake).where(Mistake.id == mistake_id))
+    if mistake is None:
+        raise HTTPException(status_code=404, detail="Mistake not found")
+    mistake.resolved = True
+    db.commit()
+    db.refresh(mistake)
+    return MistakeResponse(
+        id=mistake.id,
+        lesson_id=mistake.lesson_id,
+        lesson_title=_lesson_title(db, mistake.lesson_id),
+        source=mistake.source,
+        category=mistake.category,
+        original_answer=mistake.original_answer,
+        corrected_answer=mistake.corrected_answer,
+        explanation=mistake.explanation,
+        mistake_count=mistake.mistake_count,
+        practice_count=mistake.practice_count,
+    )
+
+
 @app.get("/api/v1/progress/mistakes/next", response_model=NextMistakeResponse | None)
 def get_next_mistake(db: Session = Depends(get_db)) -> NextMistakeResponse | None:
     mistake = db.scalar(
-        select(Mistake).order_by(Mistake.mistake_count.desc(), Mistake.last_mistake_at)
+        select(Mistake)
+        .where(Mistake.resolved.is_(False))
+        .order_by(Mistake.mistake_count.desc(), Mistake.last_mistake_at)
     )
     if mistake is None:
         return None
@@ -1252,6 +1305,7 @@ def _record_mistake(
     corrected_answer: str,
     explanation: str,
     lesson_id: int | None = None,
+    exercise_id: int | None = None,
 ) -> Mistake:
     """Create or update one normalized record in the shared mistake analytics."""
     normalized_original = original_answer.strip()
@@ -1267,6 +1321,7 @@ def _record_mistake(
         mistake = Mistake(
             course_id=course_id,
             lesson_id=lesson_id,
+            exercise_id=exercise_id,
             source=source,
             category=category,
             original_answer=normalized_original,
@@ -1277,7 +1332,9 @@ def _record_mistake(
         db.flush()
     else:
         mistake.mistake_count += 1
+        mistake.resolved = False
         mistake.lesson_id = lesson_id or mistake.lesson_id
+        mistake.exercise_id = exercise_id or mistake.exercise_id
         mistake.source = source
         mistake.corrected_answer = corrected_answer.strip() or mistake.corrected_answer
         mistake.explanation = explanation.strip() or mistake.explanation
@@ -1287,6 +1344,14 @@ def _record_mistake(
 
 def _backfill_shared_mistake_analytics(db: Session) -> None:
     """Import structured historical homework, diary, and test errors once."""
+    for dialogue_mistake in db.scalars(
+        select(Mistake).where(
+            Mistake.source == "dialogue",
+            Mistake.exercise_id.is_(None),
+            Mistake.lesson_id.is_not(None),
+        )
+    ).all():
+        dialogue_mistake.exercise_id = _first_uncompleted_exercise_id(db, dialogue_mistake.lesson_id)
     diary_entries = db.scalars(
         select(DiaryEntry).where(DiaryEntry.mistake_id.is_not(None))
     ).all()
@@ -1769,18 +1834,47 @@ def _lesson_title(db: Session, lesson_id: int | None) -> str | None:
     return lesson.title if lesson else None
 
 
+def _first_uncompleted_exercise_id(db: Session, lesson_id: int) -> int | None:
+    exercises = db.scalars(
+        select(Exercise).where(Exercise.lesson_id == lesson_id).order_by(Exercise.id)
+    ).all()
+    for exercise in exercises:
+        latest_answer = db.scalar(
+            select(UserAnswer)
+            .where(UserAnswer.exercise_id == exercise.id)
+            .order_by(UserAnswer.created_at.desc(), UserAnswer.id.desc())
+        )
+        if latest_answer is None or not latest_answer.is_correct:
+            return exercise.id
+    return exercises[-1].id if exercises else None
+
+
 @app.post("/api/v1/dialogue/sessions", response_model=DialogueSessionResponse)
-def create_dialogue_session(db: Session = Depends(get_db)) -> DialogueSessionResponse:
+def create_dialogue_session(
+    request: DialogueSessionCreateRequest | None = None,
+    db: Session = Depends(get_db),
+) -> DialogueSessionResponse:
     lessons = _ordered_lessons(db)
     next_lesson = _first_incomplete_lesson(db, lessons)
-    session = LearningSession(current_lesson_id=next_lesson.id if next_lesson else None)
-    if next_lesson is None:
+    selected_lesson = (
+        db.scalar(select(Lesson).where(Lesson.id == request.lesson_id))
+        if request and request.lesson_id is not None
+        else next_lesson
+    )
+    if request and request.lesson_id is not None and selected_lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    session = LearningSession(
+        title=request.title.strip() if request and request.title else None,
+        current_lesson_id=selected_lesson.id if selected_lesson else None,
+    )
+    if selected_lesson is None:
         session.status = "completed"
     db.add(session)
     db.commit()
     db.refresh(session)
     return DialogueSessionResponse(
         session_id=session.id,
+        title=session.title,
         current_lesson_id=session.current_lesson_id,
         current_lesson_title=_lesson_title(db, session.current_lesson_id),
         current_phase=session.current_phase,
@@ -1798,6 +1892,7 @@ def list_dialogue_sessions(db: Session = Depends(get_db)) -> list[DialogueSessio
     return [
         DialogueSessionListItem(
             session_id=session.id,
+            title=session.title,
             current_lesson_id=session.current_lesson_id,
             current_lesson_title=_lesson_title(db, session.current_lesson_id),
             current_phase=session.current_phase,
@@ -1832,6 +1927,7 @@ def select_dialogue_lesson(
     db.refresh(session)
     return DialogueSessionResponse(
         session_id=session.id,
+        title=session.title,
         current_lesson_id=session.current_lesson_id,
         current_lesson_title=lesson.title,
         current_phase=session.current_phase,
@@ -1856,6 +1952,7 @@ def get_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> Dial
         db.commit()
     return DialogueHistoryResponse(
         session_id=session.id,
+        title=session.title,
         current_lesson_id=session.current_lesson_id,
         current_lesson_title=_lesson_title(db, session.current_lesson_id),
         current_phase=session.current_phase,
@@ -1882,6 +1979,7 @@ def clear_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> Di
     db.refresh(session)
     return DialogueHistoryResponse(
         session_id=session.id,
+        title=session.title,
         current_lesson_id=session.current_lesson_id,
         current_lesson_title=_lesson_title(db, session.current_lesson_id),
         current_phase=session.current_phase,
@@ -2192,8 +2290,7 @@ def send_dialogue_message(
             response_text = (
                 f"Правильно: **{matched_dialogue_exercise.correct_answer}**.\n\n"
                 + (
-                    f"Следующее упражнение: {next_exercise.question}\n\n"
-                    f"{next_exercise.instruction or 'Напиши свой ответ по-словацки.'}"
+                    "Можешь остановиться здесь или написать «следующее упражнение», если хочешь продолжить."
                     if next_exercise
                     else "Упражнение пройдено. Можешь перейти к следующей теме."
                 )
@@ -2247,7 +2344,7 @@ def send_dialogue_message(
             else:
                 session.current_phase = "practice"
                 prompt = (
-                    "CRITICAL CHECKING RULE: Treat the latest user message as the answer to the exercise most recently assigned by the teacher. First evaluate that exact answer and explicitly say whether it is correct or incorrect, show the correction when needed, and briefly explain why. Only after that may you give one next exercise. Never replace evaluation of the latest answer with a new exercise, and never ask the learner to resend the same answer.\n"
+                    "CRITICAL CHECKING RULE: Treat the latest user message as the answer to the exercise most recently assigned by the teacher. First evaluate that exact answer and explicitly say whether it is correct or incorrect, show the correction when needed, and briefly explain why. After a correct answer, stop and wait; give another exercise only when the learner explicitly asks for «следующее упражнение» or «готов к следующему». Never replace evaluation of the latest answer with a new exercise, and never ask the learner to resend the same answer.\n"
                     "PREREQUISITE RULE: Keep every explanation, correction, and exercise strictly inside grammar explicitly taught in the current lesson theory or earlier completed lessons. Never require or penalize a case, conjugation, declension, or word-form change that has not been explained yet. A form appearing incidentally in an example does not make its hidden grammar rule available. Do not jump ahead to later course topics. If a natural sentence would require future grammar, choose a different sentence pattern using only taught forms.\n"
                     "EXERCISE WORD-BANK RULE: Whenever an exercise asks the learner to compose a sentence, name objects, list nouns, or make adjective-noun agreement, include a visible ready-to-use bank of 4-8 Slovak nouns. For each noun provide grammatical gender (m./f./n.) and a Russian translation. Prefer vocabulary from the current lesson and add suitable new words when needed. The learner must not have to invent unknown vocabulary from memory. Present the bank before the task, for example: obchod (m.) — магазин; kniha (f.) — книга.\n"
                     "ANALYTICS RULE: End the response with exactly one hidden machine-readable line: <mistake-assessment>{\"is_correct\":true|false,\"score\":0-100,\"corrected_answer\":\"...\",\"explanation\":\"...\",\"next_exercise\":\"...\",\"mistake_category\":\"category or null\",\"new_words\":[]}</mistake-assessment>. Use is_correct=false only when the latest learner message is an attempted answer containing a real error. This line is removed before display.\n"
@@ -2262,7 +2359,7 @@ def send_dialogue_message(
                     "которое уже есть в истории; отвечай на последнее сообщение ученика; если ученик спрашивает теорию, "
                     "сначала объясни теорию, а не выдавай упражнение; давай только один следующий шаг; после нескольких "
                     "разных упражнений подведи итог и попроси написать «сохрани прогресс». Используй практические "
-                    "задания и диалоговые сценарии текущей темы по одному: сначала коротко объясни задачу, затем жди ответ. "
+                    "задания и диалоговые сценарии текущей темы по одному: сначала коротко объясни задачу, затем жди ответ и после правильного ответа жди отдельную команду на продолжение. "
                     "Давай только одно упражнение или один следующий шаг. "
                     "Не утверждай, что тема или прогресс завершены без команды сервера."
                 )
@@ -2287,6 +2384,7 @@ def send_dialogue_message(
                 original_answer=request.message,
                 corrected_answer=dialogue_assessment.corrected_answer,
                 explanation=dialogue_assessment.explanation,
+                exercise_id=_first_uncompleted_exercise_id(db, current_lesson.id),
             )
             _save_vocabulary(
                 db,
@@ -2306,6 +2404,7 @@ def send_dialogue_message(
     db.refresh(session)
     return DialogueMessageResponse(
         session_id=session.id,
+        title=session.title,
         current_lesson_id=session.current_lesson_id,
         current_lesson_title=_lesson_title(db, session.current_lesson_id),
         current_phase=session.current_phase,

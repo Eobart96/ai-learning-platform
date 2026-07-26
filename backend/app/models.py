@@ -116,6 +116,7 @@ class Mistake(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
     lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
+    exercise_id: Mapped[int | None] = mapped_column(ForeignKey("exercises.id"), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String(30), default="exercise", index=True)
     category: Mapped[str] = mapped_column(String(100))
     original_answer: Mapped[str] = mapped_column(Text)
@@ -123,6 +124,7 @@ class Mistake(Base):
     explanation: Mapped[str] = mapped_column(Text)
     mistake_count: Mapped[int] = mapped_column(Integer, default=1)
     practice_count: Mapped[int] = mapped_column(Integer, default=0)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_mistake_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
@@ -182,6 +184,7 @@ class LearningSession(Base):
     __tablename__ = "learning_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     current_lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
     current_phase: Mapped[str] = mapped_column(String(30), default="theory")
     status: Mapped[str] = mapped_column(String(30), default="active")

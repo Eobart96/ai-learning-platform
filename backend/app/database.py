@@ -60,6 +60,12 @@ def ensure_sqlite_schema(database_engine) -> None:
             connection.execute(text("ALTER TABLE mistakes ADD COLUMN source TEXT NOT NULL DEFAULT 'exercise'"))
         if "practice_count" not in mistake_columns:
             connection.execute(text("ALTER TABLE mistakes ADD COLUMN practice_count INTEGER NOT NULL DEFAULT 0"))
+        if "resolved" not in mistake_columns:
+            connection.execute(text("ALTER TABLE mistakes ADD COLUMN resolved BOOLEAN NOT NULL DEFAULT 0"))
+        if "exercise_id" not in mistake_columns:
+            connection.execute(text("ALTER TABLE mistakes ADD COLUMN exercise_id INTEGER"))
         session_columns = {column["name"] for column in inspect(database_engine).get_columns("learning_sessions")}
+        if "title" not in session_columns:
+            connection.execute(text("ALTER TABLE learning_sessions ADD COLUMN title TEXT"))
         if "current_phase" not in session_columns:
             connection.execute(text("ALTER TABLE learning_sessions ADD COLUMN current_phase TEXT DEFAULT 'theory'"))
