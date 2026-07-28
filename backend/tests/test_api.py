@@ -52,6 +52,49 @@ def test_unknown_lesson_returns_404(client):
     assert response.status_code == 404
 
 
+def test_dialogue_logs_export_all_sessions_with_messages(client):
+    first_session = client.post("/api/v1/dialogue/sessions", json={"title": "?????? ??????"})
+    second_session = client.post("/api/v1/dialogue/sessions", json={"title": "?????? ??????"})
+
+    client.post(
+        f"/api/v1/dialogue/sessions/{first_session.json()['session_id']}/messages",
+        json={"message": "?????? ??????"},
+    )
+
+    response = client.get("/api/v1/dialogue/logs")
+
+    assert response.status_code == 200
+    logs = response.json()
+    assert len(logs) == 2
+    by_id = {entry["session_id"]: entry for entry in logs}
+    exported = by_id[first_session.json()["session_id"]]
+    assert exported["title"] == "?????? ??????"
+    assert len(exported["messages"]) == 2
+    assert exported["messages"][0]["role"] == "user"
+    assert exported["messages"][1]["role"] == "assistant"
+    assert exported["messages"][0]["created_at"]
+    assert exported["created_at"]
+    assert exported["updated_at"]
+
+
+def test_dialogue_logs_export_single_session(client):
+    session = client.post("/api/v1/dialogue/sessions", json={"title": "??? ??? ????"})
+    session_id = session.json()["session_id"]
+    client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "????? ? ??????????"},
+    )
+
+    response = client.get(f"/api/v1/dialogue/sessions/{session_id}/logs")
+
+    assert response.status_code == 200
+    exported = response.json()
+    assert exported["session_id"] == session_id
+    assert exported["title"] == "??? ??? ????"
+    assert len(exported["messages"]) == 2
+    assert all("created_at" in message for message in exported["messages"])
+
+
 def test_roadmap_exposes_lesson_statuses(client):
     response = client.get("/api/v1/roadmap")
 

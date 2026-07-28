@@ -260,8 +260,18 @@ class DialogueMessageView(BaseModel):
     content: str
 
 
+class DialogueMessageLogView(DialogueMessageView):
+    created_at: datetime
+
+
 class DialogueHistoryResponse(DialogueSessionResponse):
     messages: list[DialogueMessageView]
+
+
+class DialogueLogEntry(DialogueSessionResponse):
+    created_at: datetime
+    updated_at: datetime
+    messages: list[DialogueMessageLogView]
 
 
 class DialogueSessionDeleteResponse(BaseModel):
@@ -1964,6 +1974,22 @@ def get_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> Dial
     )
 
 
+@app.get("/api/v1/dialogue/logs", response_model=list[DialogueLogEntry])
+def list_dialogue_logs(db: Session = Depends(get_db)) -> list[DialogueLogEntry]:
+    sessions = db.scalars(
+        select(LearningSession).order_by(LearningSession.updated_at.desc(), LearningSession.id.desc())
+    ).all()
+    return [_dialogue_log_entry(db, session) for session in sessions]
+
+
+@app.get("/api/v1/dialogue/sessions/{session_id}/logs", response_model=DialogueLogEntry)
+def get_dialogue_session_logs(session_id: int, db: Session = Depends(get_db)) -> DialogueLogEntry:
+    session = db.scalar(select(LearningSession).where(LearningSession.id == session_id))
+    if session is None:
+        raise HTTPException(status_code=404, detail="Dialogue session not found")
+    return _dialogue_log_entry(db, session)
+
+
 @app.post("/api/v1/dialogue/sessions/{session_id}/clear", response_model=DialogueHistoryResponse)
 def clear_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> DialogueHistoryResponse:
     """Clear only the conversation history while keeping the current lesson and progress."""
@@ -2411,6 +2437,27 @@ def send_dialogue_message(
         status=session.status,
         response=response_text,
         progress_saved=progress_saved,
+    )
+
+
+def _dialogue_log_entry(db: Session, session: LearningSession) -> DialogueLogEntry:
+    return DialogueLogEntry(
+        session_id=session.id,
+        title=session.title,
+        current_lesson_id=session.current_lesson_id,
+        current_lesson_title=_lesson_title(db, session.current_lesson_id),
+        current_phase=session.current_phase,
+        status=session.status,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        messages=[
+            DialogueMessageLogView(
+                role=message.role,
+                content=message.content,
+                created_at=message.created_at,
+            )
+            for message in session.messages
+        ],
     )
 
 

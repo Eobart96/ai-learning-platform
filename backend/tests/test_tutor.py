@@ -60,6 +60,23 @@ class PracticeTutorProvider(FakeTutorProvider):
         return super().respond(context)
 
 
+class ContinuePracticeAliasProvider:
+    def respond(self, context: TutorContext) -> str:
+        if "Treat all three continuation commands as valid requests to continue practice" in context.prompt:
+            return (
+                "??????? ??????????? ???????. ?????????? 2.\n"
+                '<mistake-assessment>{"is_correct":true,"score":100,'
+                '"corrected_answer":"????? ? ??????????","explanation":"??????? ??????????? ???????.",'
+                '"next_exercise":"?????????? 2.","mistake_category":null,"new_words":[]}</mistake-assessment>'
+            )
+        return (
+            "??? ???????????.\n"
+            '<mistake-assessment>{"is_correct":false,"score":0,'
+            '"corrected_answer":"????????? ??????????","explanation":"????????? ?????? ???? ???????.",'
+            '"next_exercise":"?????????? 2.","mistake_category":"command","new_words":[]}</mistake-assessment>'
+        )
+
+
 class HistoryCaptureProvider(FakeTutorProvider):
     def __init__(self):
         self.prompts = []
@@ -441,6 +458,32 @@ def test_dialogue_answer_is_saved_on_matching_exercise(client):
     assert exercise["submitted_answer"] == "Volám sa Sergej."
     assert exercise["is_completed"] is True
     assert exercise["score"] == 100
+
+
+def test_ready_for_practice_is_accepted_as_continue_command_after_correct_answer(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: ContinuePracticeAliasProvider()
+    session = client.post("/api/v1/dialogue/sessions")
+    session_id = session.json()["session_id"]
+    client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/select-lesson",
+        json={"lesson_id": 2},
+    )
+
+    solved = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "Vol?m sa Sergej."},
+    )
+    continued = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "????? ? ??????????"},
+    )
+    mistakes = client.get("/api/v1/progress/mistakes").json()
+
+    assert solved.status_code == 200
+    assert "????? ? ??????????" in solved.json()["response"]
+    assert continued.status_code == 200
+    assert "??????? ??????????? ???????" in continued.json()["response"]
+    assert mistakes == []
 
 
 def test_dialogue_session_list_returns_recent_sessions_with_message_counts(client):
