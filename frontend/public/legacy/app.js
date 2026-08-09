@@ -9,7 +9,28 @@ const state = {
   clearDialogueArmed: false,
   view: localStorage.getItem("learning_view") === "summary" ? "learning" : (localStorage.getItem("learning_view") || "learning"),
   vocabularyFilter: localStorage.getItem("learning_vocabulary_filter") || "",
+  collapsedModules: getStoredCollapsedModules(),
 };
+
+function getStoredCollapsedModules() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("learning_collapsed_modules") || "{}");
+    return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function isModuleCollapsed(module) {
+  const storedState = state.collapsedModules[module.id];
+  if (typeof storedState === "boolean") return storedState;
+  return module.lessons.length > 0 && module.lessons.every((lesson) => lesson.status === "completed");
+}
+
+function setModuleCollapsed(moduleId, collapsed) {
+  state.collapsedModules[moduleId] = collapsed;
+  localStorage.setItem("learning_collapsed_modules", JSON.stringify(state.collapsedModules));
+}
 
 const elements = {
   status: document.querySelector("#status"),
@@ -81,6 +102,7 @@ function initSlovakKeyboards() {
     const textarea = keyboard.closest("fieldset")?.querySelector("textarea") || keyboard.closest("form")?.querySelector("textarea");
     if (!textarea) return;
     keyboard.dataset.keyboardReady = "true";
+    const quickActions = keyboard.querySelector(".keyboard-quick-actions");
     let uppercase = false;
     keyboard.innerHTML = '<span class="keyboard-label">Словацкие буквы</span>';
     const shiftButton = document.createElement("button");
@@ -108,6 +130,7 @@ function initSlovakKeyboards() {
       });
       keyboard.appendChild(button);
     });
+    if (quickActions) keyboard.appendChild(quickActions);
     shiftButton.addEventListener("click", () => { uppercase = !uppercase; updateLabels(); });
     updateLabels();
   });
@@ -140,6 +163,32 @@ async function request(path, options) {
 function setStatus(message, isError) {
   elements.status.textContent = message;
   elements.status.classList.toggle("error", Boolean(isError));
+}
+
+function setSubmissionState(form, message) {
+  const button = form.querySelector('button[type="submit"]');
+  if (!button) return () => {};
+
+  const originalLabel = button.textContent;
+  const submitStatus = document.createElement("p");
+  submitStatus.className = "submit-status";
+  submitStatus.setAttribute("role", "status");
+  submitStatus.textContent = message;
+  form.classList.add("is-submitting");
+  form.setAttribute("aria-busy", "true");
+  form.querySelectorAll("textarea, .keyboard-key").forEach((control) => { control.disabled = true; });
+  button.disabled = true;
+  button.textContent = "Проверяем...";
+  button.insertAdjacentElement("afterend", submitStatus);
+
+  return () => {
+    form.classList.remove("is-submitting");
+    form.removeAttribute("aria-busy");
+    form.querySelectorAll("textarea, .keyboard-key").forEach((control) => { control.disabled = false; });
+    button.disabled = false;
+    button.textContent = originalLabel;
+    submitStatus.remove();
+  };
 }
 
 let codexStatusTimer = null;
@@ -255,6 +304,11 @@ function renderRoadmap(levels, mistakes = state.mistakes) {
         escapeHtml(level.title) + '</p></section>';
     }
     const modules = level.modules.map((module) => {
+      const isCollapsed = isModuleCollapsed(module);
+      const completedLessons = module.lessons.filter((lesson) => lesson.status === "completed").length;
+      const status = module.test_passed
+        ? "Пройден"
+        : completedLessons === module.lessons.length ? "Все темы пройдены" : completedLessons + "/" + module.lessons.length;
       const lessons = module.lessons.map((lesson, index) => {
       const disabled = lesson.status === "upcoming" ? " disabled" : "";
       const icon = lesson.status === "completed" ? "✓" : lesson.status === "current" ? "•" : index + 1;
@@ -269,8 +323,12 @@ function renderRoadmap(levels, mistakes = state.mistakes) {
         '<button type="button" data-module-test-id="' + module.id + '">' +
         (module.test_passed ? "Итоговый тест · " + module.test_score + "/100" : "Итоговый тест модуля") +
         '</button></div>' : "";
-      return '<div class="roadmap-module-title">' + escapeHtml(module.title) +
-        '</div><div class="roadmap-list">' + lessons + testItem + '</div>';
+      return '<section class="roadmap-module' + (isCollapsed ? " collapsed" : "") + '">' +
+        '<button type="button" class="roadmap-module-toggle" data-module-toggle-id="' + module.id + '" aria-expanded="' + (!isCollapsed) + '">' +
+        '<span class="roadmap-module-title">' + escapeHtml(module.title) + '</span>' +
+        '<span class="roadmap-module-summary">' + status + '</span>' +
+        '<span class="roadmap-module-chevron" aria-hidden="true">&#8964;</span></button>' +
+        '<div class="roadmap-list">' + lessons + testItem + '</div></section>';
     }).join("");
     return '<section class="roadmap-level"><div class="roadmap-level-heading"><strong>' +
       escapeHtml(level.slug) + '</strong><span>текущий уровень</span></div><p class="level-hint">' +
@@ -281,6 +339,15 @@ function renderRoadmap(levels, mistakes = state.mistakes) {
   });
   elements.roadmap.querySelectorAll("button[data-module-test-id]").forEach((button) => {
     button.addEventListener("click", () => openModuleTest(Number(button.dataset.moduleTestId)));
+  });
+  elements.roadmap.querySelectorAll("button[data-module-toggle-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const moduleId = Number(button.dataset.moduleToggleId);
+      const module = levels.flatMap((level) => level.modules).find((item) => item.id === moduleId);
+      if (!module) return;
+      setModuleCollapsed(moduleId, !isModuleCollapsed(module));
+      renderRoadmap(levels, mistakes);
+    });
   });
 }
 
@@ -621,18 +688,23 @@ function renderHomeworkFeedback(item) {
     item.score + '/100</span></div>' + submitted + corrected + explanation + nextExercise + '</div>';
 }
 
+function renderHomeworkForm(item, submitLabel) {
+  return '<form class="homework-form" data-homework-id="' + item.id + '">' +
+    '<textarea rows="3" placeholder="Выполни задание здесь..." required></textarea>' +
+    '<div class="slovak-keyboard" data-keyboard><span class="keyboard-label">Словацкие буквы</span></div>' +
+    '<button type="submit">' + submitLabel + '</button></form>';
+}
+
 function renderHomework(items) {
   if (!items.length) {
     elements.homework.innerHTML = '<p class="empty">Домашнее задание появится после сохранения темы.</p>';
     return;
   }
   elements.homework.innerHTML = items.slice(0, 3).map((item) => {
-    const result = item.score === null ?
-      '<form class="homework-form" data-homework-id="' + item.id + '">' +
-      '<textarea rows="3" placeholder="Выполни задание здесь..." required></textarea>' +
-      '<div class="slovak-keyboard" data-keyboard><span class="keyboard-label">Словацкие буквы</span></div>' +
-      '<button type="submit">Отправить на проверку</button></form>' :
-      renderHomeworkFeedback(item);
+    const hasOpenMistake = item.mistake_id !== null && item.mistake_id !== undefined;
+    const result = item.score === null
+      ? renderHomeworkForm(item, "Отправить на проверку")
+      : renderHomeworkFeedback(item) + (hasOpenMistake ? renderHomeworkForm(item, "Отправить исправление") : "");
     return '<article class="homework-item"><strong>' + escapeHtml(item.title) + '</strong><p>' +
       escapeHtml(item.description) + '</p>' + result + '</article>';
   }).join("");
@@ -640,16 +712,19 @@ function renderHomework(items) {
   elements.homework.querySelectorAll(".homework-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const button = form.querySelector("button");
       const answer = form.querySelector("textarea").value;
-      button.disabled = true;
+      const restoreSubmissionState = setSubmissionState(form, "AI проверяет домашнее задание...");
+      setStatus("AI проверяет домашнее задание...", false);
       try {
         const result = await request("/api/v1/homework/" + form.dataset.homeworkId + "/submit", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answer }),
         });
         setStatus("Домашнее задание проверено: " + result.score + "/100.", false);
         await refresh();
-      } catch (error) { setStatus(error.message, true); button.disabled = false; }
+      } catch (error) {
+        restoreSubmissionState();
+        setStatus(error.message, true);
+      }
     });
   });
 }
@@ -678,7 +753,7 @@ function renderModuleTest(test, showForm = false) {
     (test.passed ? "Тест пройден" : "Тест нужно повторить") + '</strong><span>' + test.score + '/100</span></div>';
   const history = test.history?.length ? '<details class="test-history"><summary>История попыток · ' + test.history.length + '</summary><div class="test-history-content">' + test.history.map((attempt) =>
     '<details class="test-history-item"><summary><strong>' + (attempt.passed ? "Пройден" : "Не пройден") + '</strong><span>' + attempt.score + '/100</span></summary>' +
-    (attempt.details_available ? (attempt.mistakes.length ? '<div class="test-mistakes"><b>Ошибки:</b>' + attempt.mistakes.map((mistake) => '<p><strong>' + escapeHtml(mistake.question) + '</strong><br>Твой ответ: ' + escapeHtml(mistake.submitted_answer || "—") + '<br>Правильно: ' + escapeHtml(mistake.expected_answer) + '</p>').join("") + '</div>' : '<small>Ошибок нет.</small>') : '<small>Детализация ошибок для этой старой попытки недоступна.</small>') + '</details>'
+    (attempt.details_available ? (attempt.mistakes.length ? '<div class="test-mistakes"><b>Ошибки:</b>' + attempt.mistakes.map((mistake) => '<p><strong>' + escapeHtml(mistake.question) + '</strong><br>Твой ответ: ' + escapeHtml(mistake.submitted_answer || "—") + '<br>Правильно: ' + escapeHtml(mistake.expected_answer) + (mistake.explanation ? '<span class="test-mistake-explanation"><b>Почему:</b> ' + escapeHtml(mistake.explanation) + '</span>' : '') + '</p>').join("") + '</div>' : '<small>Ошибок нет.</small>') : '<small>Детализация ошибок для этой старой попытки недоступна.</small>') + '</details>'
   ).join("") + '</div></details>' : "";
   if (!showForm) {
     elements.moduleTest.innerHTML = result + history + '<button type="button" class="module-test-open">' + (test.score === null || test.score === undefined ? "Сдать тест" : "Пересдать") + '</button>';
@@ -852,8 +927,8 @@ async function sendChatMessage(message, sessionId = state.sessionId) {
 elements.answerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.selectedExercise) return;
-  const button = elements.answerForm.querySelector("button");
-  button.disabled = true;
+  const restoreSubmissionState = setSubmissionState(elements.answerForm, "AI проверяет упражнение...");
+  setStatus("AI проверяет упражнение...", false);
   try {
     const result = await request("/api/v1/lessons/" + state.currentLessonId + "/answer", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -863,7 +938,7 @@ elements.answerForm.addEventListener("submit", async (event) => {
     elements.answer.value = "";
     await refresh();
   } catch (error) { setStatus(error.message, true); }
-  finally { button.disabled = false; }
+  finally { restoreSubmissionState(); }
 });
 
 elements.diaryForm.addEventListener("submit", async (event) => {

@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { AppHeader, type AppView, type Theme } from "./components/AppHeader";
-import { LegacyWorkspace } from "./components/LegacyWorkspace";
+import { AppHeader, type AppView, type LearningSubject, type Theme } from "./components/AppHeader";
+import { ExercisesScreen } from "./components/ExercisesScreen";
+import { TestsScreen } from "./components/TestsScreen";
+import { MistakesScreen } from "./components/MistakesScreen";
+import { VocabularyScreen } from "./components/VocabularyScreen";
+import { DiaryScreen } from "./components/DiaryScreen";
+import { HomeworkScreen } from "./components/HomeworkScreen";
+import { LearningScreen } from "./components/LearningScreen";
+import { MathScreen } from "./components/MathScreen";
+import { MathPracticeScreen } from "./components/MathPracticeScreen";
+import { getCodexStatus, resetProgress, startCodexLogin } from "./lib/api";
 
 const themeStorageKey = "ai-learning-platform-theme";
 
@@ -28,57 +37,12 @@ const initialLegacyHeaderState: LegacyHeaderState = {
 };
 
 export default function HomePage() {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [theme, setTheme] = useState<Theme>("light");
   const [legacyHeader, setLegacyHeader] = useState<LegacyHeaderState>(initialLegacyHeaderState);
+  const [activeView, setActiveView] = useState<AppView>("learning");
+  const [subject, setSubject] = useState<LearningSubject>("slovak");
 
-  const sendTheme = (nextTheme: Theme) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "learning-platform-theme", theme: nextTheme },
-      window.location.origin,
-    );
-  };
-
-  const syncLegacyHeader = useCallback(() => {
-    const legacyDocument = iframeRef.current?.contentDocument;
-    if (!legacyDocument) return;
-
-    const legacyShell = legacyDocument.querySelector<HTMLElement>("main.shell");
-    if (iframeRef.current) {
-      const isDialogueExpanded = legacyShell?.classList.contains("dialogue-expanded") ?? false;
-      const contentHeight = Math.max(
-        legacyDocument.documentElement.scrollHeight,
-        legacyDocument.body.scrollHeight,
-      );
-      const viewportHeight = Math.max(620, window.innerHeight - 24);
-      iframeRef.current.style.height = `${isDialogueExpanded ? viewportHeight : contentHeight}px`;
-    }
-
-    const codexConnection = legacyDocument.querySelector<HTMLElement>("#codex-connection");
-    const codexLabel = legacyDocument.querySelector<HTMLElement>("#codex-connection-label");
-    const codexConnectButton = legacyDocument.querySelector<HTMLButtonElement>("#codex-connect-button");
-    const status = legacyDocument.querySelector<HTMLElement>("#status");
-    const activeView = legacyShell?.dataset.view as AppView | undefined;
-
-    const nextState: LegacyHeaderState = {
-      activeView: activeView ?? "learning",
-      codexLabel: codexLabel?.textContent?.trim() || "Проверка Codex…",
-      codexConnected: codexConnection?.classList.contains("connected") ?? false,
-      codexUnavailable: codexConnection?.classList.contains("unavailable") ?? false,
-      codexConnectDisabled: codexConnectButton?.disabled ?? true,
-      statusLabel: status?.textContent?.trim() || "Загрузка…",
-      statusError: status?.classList.contains("error") ?? false,
-    };
-
-    setLegacyHeader((currentState) =>
-      JSON.stringify(currentState) === JSON.stringify(nextState) ? currentState : nextState,
-    );
-  }, []);
-
-  const clickLegacyButton = (selector: string) => {
-    iframeRef.current?.contentDocument?.querySelector<HTMLButtonElement>(selector)?.click();
-    window.setTimeout(syncLegacyHeader, 0);
-  };
+  const refreshCodexStatus = async () => { try { const status = await getCodexStatus(); setLegacyHeader((current) => ({ ...current, codexLabel: status.authenticated ? "Codex подключён" : status.installed ? "Codex не подключён" : "Codex не найден", codexConnected: status.authenticated, codexUnavailable: !status.installed, codexConnectDisabled: !status.installed, statusLabel: status.message || "Готово", statusError: false })); } catch (cause) { setLegacyHeader((current) => ({ ...current, statusLabel: cause instanceof Error ? cause.message : "Не удалось проверить Codex", statusError: true })); } };
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(themeStorageKey);
@@ -88,51 +52,45 @@ export default function HomePage() {
     setTheme(storedTheme === "dark" || storedTheme === "light" ? storedTheme : preferredTheme);
   }, []);
 
-  useEffect(() => {
-    const timer = window.setInterval(syncLegacyHeader, 800);
-    return () => window.clearInterval(timer);
-  }, [syncLegacyHeader]);
+  useEffect(() => { void refreshCodexStatus(); const timer = window.setInterval(() => void refreshCodexStatus(), 5000); return () => window.clearInterval(timer); }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(themeStorageKey, theme);
-    sendTheme(theme);
   }, [theme]);
-
-  useEffect(() => {
-    const receiveThemeChange = (event: MessageEvent) => {
-      if (
-        event.origin === window.location.origin &&
-        (event.data?.theme === "light" || event.data?.theme === "dark") &&
-        event.data?.type === "learning-platform-theme-change"
-      ) {
-        setTheme(event.data.theme);
-      }
-    };
-
-    window.addEventListener("message", receiveThemeChange);
-    return () => window.removeEventListener("message", receiveThemeChange);
-  }, []);
 
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"));
   };
 
   const handleNavigate = (view: AppView) => {
-    clickLegacyButton(`[data-view-link="${view}"]`);
+    setActiveView(view);
     setLegacyHeader((currentState) => ({ ...currentState, activeView: view }));
   };
 
-  const handleLegacyLoad = () => {
-    sendTheme(theme);
-    syncLegacyHeader();
+  const handleSelectSubject = (nextSubject: LearningSubject) => {
+    setSubject(nextSubject);
+    const nextView: AppView = nextSubject === "mathematics" ? "mathematics" : "learning";
+    setActiveView(nextView);
+    setLegacyHeader((currentState) => ({ ...currentState, activeView: nextView }));
   };
+
+  const handlePracticeStarted = (sessionId: number, lessonId: number | null) => {
+    window.localStorage.setItem("learning_session_id", String(sessionId));
+    if (lessonId) window.localStorage.setItem("learning_lesson_id", String(lessonId));
+    window.localStorage.setItem("learning_view", "learning");
+    setActiveView("learning");
+  };
+
+  const handleConnectCodex = async () => { try { const status = await startCodexLogin(); setLegacyHeader((current) => ({ ...current, codexLabel: status.authenticated ? "Codex подключён" : "Ожидаю вход…", codexConnected: status.authenticated, codexUnavailable: !status.installed, statusLabel: status.message || "Ожидаю вход…", statusError: false })); } catch (cause) { setLegacyHeader((current) => ({ ...current, statusLabel: cause instanceof Error ? cause.message : "Не удалось запустить вход Codex", statusError: true })); } };
+  const handleResetProgress = async () => { if (!window.confirm("Очистить историю уроков, ошибки, слова, дневник и домашние задания? Курс и roadmap сохранятся.")) return; try { await resetProgress(); window.localStorage.removeItem("learning_session_id"); window.localStorage.removeItem("learning_lesson_id"); setLegacyHeader((current) => ({ ...current, statusLabel: "Прогресс очищен.", statusError: false })); window.location.reload(); } catch (cause) { setLegacyHeader((current) => ({ ...current, statusLabel: cause instanceof Error ? cause.message : "Не удалось очистить прогресс", statusError: true })); } };
 
   return (
     <main className="application-shell">
       <AppHeader
         theme={theme}
-        activeView={legacyHeader.activeView}
+        subject={subject}
+        activeView={activeView}
         codexLabel={legacyHeader.codexLabel}
         codexConnected={legacyHeader.codexConnected}
         codexUnavailable={legacyHeader.codexUnavailable}
@@ -140,11 +98,22 @@ export default function HomePage() {
         statusLabel={legacyHeader.statusLabel}
         statusError={legacyHeader.statusError}
         onToggleTheme={toggleTheme}
+        onSelectSubject={handleSelectSubject}
         onNavigate={handleNavigate}
-        onConnectCodex={() => clickLegacyButton("#codex-connect-button")}
-        onResetProgress={() => clickLegacyButton("#reset-progress-button")}
+        onConnectCodex={() => void handleConnectCodex()}
+        onResetProgress={() => void handleResetProgress()}
       />
-      <LegacyWorkspace iframeRef={iframeRef} onLoad={handleLegacyLoad} />
+      {activeView === "learning" && <LearningScreen />}
+      {activeView === "mathematics" && <MathScreen />}
+      {activeView === "math_practice" && <MathPracticeScreen />}
+      {activeView === "math_tests" && <TestsScreen courseSlug="math-exam-prep" />}
+      {activeView === "math_mistakes" && <MistakesScreen courseSlug="math-exam-prep" />}
+      {activeView === "exercises" && <ExercisesScreen />}
+      {activeView === "tests" && <TestsScreen />}
+      {activeView === "mistakes" && <MistakesScreen courseSlug="slovak-a1" onPracticeStarted={handlePracticeStarted} />}
+      {activeView === "vocabulary" && <VocabularyScreen />}
+      {activeView === "diary" && <DiaryScreen />}
+      {activeView === "homework" && <HomeworkScreen />}
     </main>
   );
 }

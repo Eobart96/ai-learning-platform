@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Learning Platform</title>
-    <link rel="stylesheet" href="styles.css?v=32" />
-    <link rel="stylesheet" href="dark.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=38" />
+    <link rel="stylesheet" href="dark.css?v=8" />
   </head>
   <body>
     <main class="shell">
@@ -63,12 +63,6 @@
             </div>
           </div>
           <div class="dialogue-expanded-tools">
-            <div class="quick-actions" aria-label="Быстрые действия в развернутом чате">
-              <p class="quick-actions-title">Быстрые действия</p>
-              <button type="button" class="quick-action" data-quick-message="Покажи подробную теорию по текущей теме">Теория</button>
-              <button type="button" class="quick-action" data-quick-message="готов к упражнению">К практике</button>
-              <button type="button" class="quick-action" data-quick-message="сохрани прогресс">Сохранить</button>
-            </div>
             <div class="dialogue-expanded-history">
               <div class="panel-heading">
                 <h3>История диалогов</h3>
@@ -82,6 +76,11 @@
             <textarea id="chat-input" rows="3" placeholder="Напиши преподавателю..." required></textarea>
             <div class="slovak-keyboard" data-keyboard>
               <span class="keyboard-label">Словацкие буквы</span>
+              <div class="keyboard-quick-actions" aria-label="Быстрые действия">
+                <button type="button" class="quick-action" data-quick-message="Покажи подробную теорию по текущей теме">Теория</button>
+                <button type="button" class="quick-action" data-quick-message="готов к упражнению">К практике</button>
+                <button type="button" class="quick-action" data-quick-message="сохрани прогресс">Сохранить</button>
+              </div>
             </div>
             <div class="chat-actions">
               <span class="muted">Можно отвечать по-русски или по-словацки</span>
@@ -121,12 +120,6 @@
             <div class="panel-heading"><h2 id="summary-title">Сводка</h2><span id="summary-subtitle" class="muted">по курсу</span></div>
             <div id="progress" class="metrics"></div>
             <div id="mistakes" class="mistake-list"></div>
-            <div class="quick-actions" aria-label="Быстрые действия">
-              <p class="quick-actions-title">Быстрые действия</p>
-              <button type="button" class="quick-action" data-quick-message="Покажи подробную теорию по текущей теме">Теория</button>
-              <button type="button" class="quick-action" data-quick-message="готов к упражнению">К практике</button>
-              <button type="button" class="quick-action" data-quick-message="сохрани прогресс">Сохранить</button>
-            </div>
           </section>
 
           <section class="card compact-card context-section history-section" data-context-section="history">
@@ -210,6 +203,6 @@
         });
       })();
     </script>
-    <script src="app.js?v=46"></script>
+    <script src="app.js?v=52"></script>
   </body>
 </html>
