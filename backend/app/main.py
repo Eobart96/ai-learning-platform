@@ -44,6 +44,7 @@ from app.tutor import (
 from app.routers.tutor import router as tutor_router
 from app.routers.courses import router as courses_router
 from app.routers.diary import router as diary_router
+from app.routers.homework import router as homework_router
 from app.routers.practice import router as practice_router
 from app.routers.progress import router as progress_router
 from app.routers.vocabulary import router as vocabulary_router
@@ -87,6 +88,7 @@ app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
 app.include_router(tutor_router)
 app.include_router(courses_router)
 app.include_router(diary_router)
+app.include_router(homework_router)
 app.include_router(practice_router)
 app.include_router(progress_router)
 app.include_router(vocabulary_router)
@@ -980,7 +982,6 @@ def _backfill_shared_mistake_analytics(db: Session) -> None:
     db.commit()
 
 
-@app.post("/api/v1/homework/generate", response_model=HomeworkResponse)
 def generate_homework(
     request: HomeworkGenerateRequest,
     db: Session = Depends(get_db),
@@ -1043,7 +1044,6 @@ def generate_homework(
     )
 
 
-@app.get("/api/v1/homework", response_model=list[HomeworkResponse])
 def list_homework(db: Session = Depends(get_db)) -> list[HomeworkResponse]:
     homework_items = db.scalars(select(Homework).order_by(Homework.id.desc())).all()
     return [
@@ -1063,7 +1063,6 @@ def list_homework(db: Session = Depends(get_db)) -> list[HomeworkResponse]:
     ]
 
 
-@app.post("/api/v1/homework/{homework_id}/submit", response_model=HomeworkSubmitResponse)
 def submit_homework(
     homework_id: int,
     request: HomeworkSubmitRequest,
