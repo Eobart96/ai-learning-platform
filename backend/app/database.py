@@ -37,6 +37,8 @@ def ensure_sqlite_schema(database_engine) -> None:
         return
     columns = {column["name"] for column in inspect(database_engine).get_columns("homework")}
     with database_engine.begin() as connection:
+        if "mistake_id" not in columns:
+            connection.execute(text("ALTER TABLE homework ADD COLUMN mistake_id INTEGER"))
         if "submitted_answer" not in columns:
             connection.execute(text("ALTER TABLE homework ADD COLUMN submitted_answer TEXT"))
         if "submitted_at" not in columns:

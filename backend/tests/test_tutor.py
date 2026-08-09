@@ -1,12 +1,13 @@
 from pathlib import Path
 
+from app.config import Settings
 from app.main import app, get_tutor_provider
-from app.tutor import TutorContext
+from app.tutor import TutorContext, build_tutor_context
 
 
 class FakeTutorProvider:
     def respond(self, context: TutorContext) -> str:
-        assert "ученика Sergej" in context.prompt
+        assert "русскоговорящего ученика" in context.prompt
         if "верни только json" in context.prompt.lower():
             if "проверь выполнение" in context.prompt.lower():
                 return (
@@ -54,6 +55,33 @@ class DiaryTutorProvider:
         )
 
 
+class MistakeChatProvider:
+    def __init__(self):
+        self.prompts: list[str] = []
+
+    def respond(self, context: TutorContext) -> str:
+        self.prompts.append(context.prompt)
+        if "верни только json" in context.prompt.lower():
+            return (
+                '{"is_correct": false, "score": 20, "corrected_answer": "Dobrý deň", '
+                '"explanation": "Проверь написание приветствия.", '
+                '"next_exercise": "Повтори приветствие.", "mistake_category": "greeting"}'
+            )
+        return "Разберём только эту ошибку: после приветствия используй форму Dobrý deň."
+
+
+class GeneratedExerciseProvider:
+    def __init__(self):
+        self.prompts: list[str] = []
+
+    def respond(self, context: TutorContext) -> str:
+        self.prompts.append(context.prompt)
+        return (
+            '{"question":"Как сказать по-словацки: Доброе утро?", '
+            '"instruction":"Напиши один короткий вариант приветствия."}'
+        )
+
+
 class PracticeTutorProvider(FakeTutorProvider):
     def respond(self, context: TutorContext) -> str:
         assert "Сценарий:" in context.prompt
@@ -64,16 +92,16 @@ class ContinuePracticeAliasProvider:
     def respond(self, context: TutorContext) -> str:
         if "Treat all three continuation commands as valid requests to continue practice" in context.prompt:
             return (
-                "??????? ??????????? ???????. ?????????? 2.\n"
+                "Команда продолжения принята. Упражнение 2.\n"
                 '<mistake-assessment>{"is_correct":true,"score":100,'
-                '"corrected_answer":"????? ? ??????????","explanation":"??????? ??????????? ???????.",'
-                '"next_exercise":"?????????? 2.","mistake_category":null,"new_words":[]}</mistake-assessment>'
+                '"corrected_answer":"готов к упражнению","explanation":"Команда продолжения принята.",'
+                '"next_exercise":"Упражнение 2.","mistake_category":null,"new_words":[]}</mistake-assessment>'
             )
         return (
-            "??? ???????????.\n"
+            "Это неправильно.\n"
             '<mistake-assessment>{"is_correct":false,"score":0,'
-            '"corrected_answer":"????????? ??????????","explanation":"????????? ?????? ???? ???????.",'
-            '"next_exercise":"?????????? 2.","mistake_category":"command","new_words":[]}</mistake-assessment>'
+            '"corrected_answer":"следующее упражнение","explanation":"Ожидалась только одна команда.",'
+            '"next_exercise":"Упражнение 2.","mistake_category":"command","new_words":[]}</mistake-assessment>'
         )
 
 
@@ -100,6 +128,35 @@ class DialogueMistakeProvider:
             '"next_exercise":"Составь ещё одну фразу.","mistake_category":"agreement",'
             '"new_words":[]}</mistake-assessment>'
         )
+
+
+def test_tutor_context_uses_public_profile_without_local_override(tmp_path: Path):
+    project_root = Path(__file__).parents[2]
+    settings = Settings(
+        project_root=tmp_path,
+        course_path=project_root / "course-content" / "slovak-a1" / "course.yaml",
+    )
+
+    context = build_tutor_context(settings, "Начнём урок")
+
+    assert "Это публичный пример профиля" in context.prompt
+    assert "русскоговорящего ученика" in context.prompt
+
+
+def test_tutor_context_prefers_local_profile_override(tmp_path: Path):
+    project_root = Path(__file__).parents[2]
+    local_profile = tmp_path / ".ai" / "private" / "student_profile.local.md"
+    local_profile.parent.mkdir(parents=True)
+    local_profile.write_text("Локальная настройка ученика.", encoding="utf-8")
+    settings = Settings(
+        project_root=tmp_path,
+        course_path=project_root / "course-content" / "slovak-a1" / "course.yaml",
+    )
+
+    context = build_tutor_context(settings, "Начнём урок")
+
+    assert "Локальная настройка ученика." in context.prompt
+    assert "Это публичный пример профиля" not in context.prompt
 
 
 def test_tutor_message_uses_learning_context(client):
@@ -164,6 +221,22 @@ def test_lesson_answer_is_saved_and_checked(client):
     assert response.json()["mistake_id"] == 1
 
 
+def test_numeric_math_answer_is_checked_without_tutor(client):
+    roadmap = client.get("/api/v1/roadmap", params={"course_slug": "math-exam-prep"}).json()
+    lesson_id = roadmap[0]["lessons"][0]["id"]
+    lesson = client.get(f"/api/v1/lessons/{lesson_id}").json()
+    exercise_id = lesson["exercises"][0]["id"]
+
+    response = client.post(
+        f"/api/v1/lessons/{lesson_id}/answer",
+        json={"exercise_id": exercise_id, "answer": "0"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assessment"]["is_correct"] is True
+    assert response.json()["assessment"]["score"] == 100
+
+
 def test_repeated_mistake_increments_counter(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
     payload = {"exercise_id": 1, "answer": "Dobrý deň"}
@@ -210,7 +283,50 @@ def test_progress_and_mistakes_are_available_after_answer(client):
     assert client.get("/api/v1/lessons/1").json()["exercises"][0]["is_resolved"] is True
 
 
-def test_lesson_can_be_completed_after_answer(client):
+def test_mistake_chat_uses_only_selected_error_without_starting_learning(client):
+    provider = MistakeChatProvider()
+    app.dependency_overrides[get_tutor_provider] = lambda: provider
+    client.post(
+        "/api/v1/lessons/1/answer",
+        json={"exercise_id": 1, "answer": "Dobrý deň"},
+    )
+    mistake = client.get("/api/v1/progress/mistakes").json()[0]
+    sessions_before = client.get("/api/v1/dialogue/sessions")
+
+    response = client.post(
+        f"/api/v1/progress/mistakes/{mistake['id']}/chat",
+        json={"message": "Почему здесь ошибка?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["response"].startswith("Разберём только эту ошибку")
+    assert client.get("/api/v1/dialogue/sessions").json() == sessions_before.json()
+    prompt = provider.prompts[-1]
+    assert "ИЗОЛИРОВАННОГО ЧАТА ПО ОШИБКЕ" in prompt
+    assert mistake["original_answer"] in prompt
+    assert "не начинай урок" in prompt.lower()
+    assert "не создавай и не изменяй" in prompt.lower()
+
+
+def test_slovak_topic_keeps_generated_exercise_in_a_separate_list_after_reload(client):
+    provider = GeneratedExerciseProvider()
+    app.dependency_overrides[get_tutor_provider] = lambda: provider
+
+    response = client.post("/api/v1/lessons/1/generated-exercises")
+
+    assert response.status_code == 200
+    generated = response.json()
+    assert generated["question"] == "Как сказать по-словацки: Доброе утро?"
+    assert generated["instruction"] == "Напиши один короткий вариант приветствия."
+    reloaded = client.get("/api/v1/lessons/1").json()
+    assert generated["id"] not in {item["id"] for item in reloaded["exercises"]}
+    assert reloaded["generated_exercises"][0]["id"] == generated["id"]
+    prompt = provider.prompts[-1]
+    assert "СГЕНЕРИРУЙ ОДНО НОВОЕ УПРАЖНЕНИЕ" in prompt
+    assert "только по текущей теме" in prompt.lower()
+
+
+def test_lesson_cannot_be_completed_after_incorrect_answer(client):
     app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
     client.post(
         "/api/v1/lessons/1/answer",
@@ -219,9 +335,9 @@ def test_lesson_can_be_completed_after_answer(client):
 
     response = client.post("/api/v1/lessons/1/complete")
 
-    assert response.status_code == 200
-    assert response.json()["completed"] is True
-    assert client.get("/api/v1/progress").json()["completed_lessons"] == 1
+    assert response.status_code == 409
+    assert "correct answer" in response.json()["detail"].lower()
+    assert client.get("/api/v1/progress").json()["completed_lessons"] == 0
 
 
 def test_next_mistake_and_homework_are_available(client):
@@ -279,9 +395,11 @@ def test_homework_mistake_is_added_to_shared_analytics(client):
     homework_mistake = next(item for item in mistakes if item["source"] == "homework")
 
     assert response.status_code == 200
+    assert response.json()["mistake_id"] == homework_mistake["id"]
     assert homework_mistake["original_answer"] == "Dobry den"
     assert homework_mistake["lesson_id"] == 1
     assert homework_mistake["practice_count"] == 0
+    assert client.get("/api/v1/homework").json()[0]["mistake_id"] == homework_mistake["id"]
 
     practiced = client.post(
         f"/api/v1/progress/mistakes/{homework_mistake['id']}/practice"
@@ -289,6 +407,20 @@ def test_homework_mistake_is_added_to_shared_analytics(client):
 
     assert practiced.status_code == 200
     assert practiced.json()["practice_count"] == 1
+
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    corrected = client.post(
+        f"/api/v1/homework/{homework.json()['id']}/submit",
+        json={"answer": "Dobrý deň"},
+    )
+
+    assert corrected.status_code == 200
+    assert corrected.json()["mistake_id"] is None
+    assert client.get("/api/v1/homework").json()[0]["mistake_id"] is None
+    assert all(
+        item["id"] != homework_mistake["id"]
+        for item in client.get("/api/v1/progress/mistakes").json()
+    )
 
 
 def test_new_words_are_saved_and_can_be_reviewed(client):
@@ -321,6 +453,65 @@ def test_new_words_are_saved_and_can_be_reviewed(client):
     assert reviewed.json()["interval_days"] == 1
     assert reviewed.json()["is_due"] is False
     assert any(item["id"] != topic_word_id for item in due_after.json())
+
+
+def test_vocabulary_router_returns_next_saved_item_and_missing_item_404(client):
+    next_item = client.get("/api/v1/progress/vocabulary/next")
+    missing_save = client.post("/api/v1/progress/vocabulary/999999/save")
+    missing_review = client.post("/api/v1/progress/vocabulary/999999/review")
+
+    assert next_item.status_code == 200
+    assert next_item.json() is not None
+    assert next_item.json()["is_saved"] is True
+    assert next_item.json()["is_due"] is True
+    assert missing_save.status_code == 404
+    assert missing_save.json()["detail"] == "Vocabulary item not found"
+    assert missing_review.status_code == 404
+    assert missing_review.json()["detail"] == "Vocabulary item not found"
+
+
+def test_diary_read_only_endpoints_return_empty_state_before_first_entry(client):
+    prompt = client.get("/api/v1/diary/today")
+    entries = client.get("/api/v1/diary/entries")
+    summary = client.get("/api/v1/diary/weekly-summary")
+
+    assert prompt.status_code == 200
+    assert prompt.json()["lesson_id"] is not None
+    assert prompt.json()["has_entry_today"] is False
+    assert entries.status_code == 200
+    assert entries.json() == []
+    assert summary.status_code == 200
+    assert summary.json() == {
+        "period_days": 7,
+        "entries_count": 0,
+        "average_score": None,
+        "mistakes_count": 0,
+        "new_words_count": 0,
+    }
+
+
+def test_diary_entry_rejects_empty_answer(client):
+    response = client.post(
+        "/api/v1/diary/entries",
+        json={"prompt": "Напиши о сегодняшнем дне.", "answer": "   "},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Answer must not be empty"
+
+
+def test_diary_entry_rejects_unknown_lesson(client):
+    response = client.post(
+        "/api/v1/diary/entries",
+        json={
+            "prompt": "Напиши о сегодняшнем дне.",
+            "answer": "Dnes pracujem doma.",
+            "lesson_id": 999999,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Lesson not found"
 
 
 def test_diary_entry_is_checked_saved_and_included_in_weekly_summary(client):
@@ -358,6 +549,10 @@ def test_dialogue_session_persists_history_and_progress_command(client):
         f"/api/v1/dialogue/sessions/{session_id}/messages",
         json={"message": "Объясни приветствие"},
     )
+    correct_answer = client.post(
+        f"/api/v1/dialogue/sessions/{session_id}/messages",
+        json={"message": "Dobrý deň"},
+    )
     saved = client.post(
         f"/api/v1/dialogue/sessions/{session_id}/messages",
         json={"message": "сохрани прогресс"},
@@ -365,11 +560,12 @@ def test_dialogue_session_persists_history_and_progress_command(client):
     history = client.get(f"/api/v1/dialogue/sessions/{session_id}")
 
     assert message.status_code == 200
+    assert correct_answer.status_code == 200
     assert saved.status_code == 200
     assert saved.json()["progress_saved"] is True
     assert saved.json()["status"] == "active"
     assert saved.json()["current_lesson_title"] == "Представление себя"
-    assert len(history.json()["messages"]) == 4
+    assert len(history.json()["messages"]) == 6
     assert client.get("/api/v1/homework").json()[0]["title"] == "Повторяем приветствия"
 
     resumed = client.post("/api/v1/dialogue/sessions")
@@ -471,18 +667,18 @@ def test_ready_for_practice_is_accepted_as_continue_command_after_correct_answer
 
     solved = client.post(
         f"/api/v1/dialogue/sessions/{session_id}/messages",
-        json={"message": "Vol?m sa Sergej."},
+        json={"message": "Volám sa Sergej."},
     )
     continued = client.post(
         f"/api/v1/dialogue/sessions/{session_id}/messages",
-        json={"message": "????? ? ??????????"},
+        json={"message": "готов к упражнению"},
     )
     mistakes = client.get("/api/v1/progress/mistakes").json()
 
     assert solved.status_code == 200
-    assert "????? ? ??????????" in solved.json()["response"]
+    assert "готов к упражнению" in solved.json()["response"]
     assert continued.status_code == 200
-    assert "??????? ??????????? ???????" in continued.json()["response"]
+    assert "Команда продолжения принята" in continued.json()["response"]
     assert mistakes == []
 
 

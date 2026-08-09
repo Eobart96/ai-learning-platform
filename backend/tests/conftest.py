@@ -9,7 +9,27 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import get_settings
 from app.database import Base, get_db
 import app.main as main_module
-from app.main import app
+from app.main import app, get_tutor_provider
+from app.tutor import TutorContext
+
+
+class TestTutorProvider:
+    """Offline default for endpoints that exercise the dialogue flow in tests."""
+
+    def respond(self, context: TutorContext) -> str:
+        prompt = context.prompt.lower()
+        if "домашнее задание" in prompt:
+            return (
+                '{"title":"Тестовое домашнее задание","description":"Выполни одно тестовое задание.",'
+                '"focus_category":"test"}'
+            )
+        if "только json" in prompt:
+            return (
+                '{"is_correct":true,"score":100,"corrected_answer":"Тестовый ответ",'
+                '"explanation":"Тестовая проверка.","next_exercise":"Продолжай.",'
+                '"mistake_category":null,"new_words":[]}'
+            )
+        return "Тестовый ответ преподавателя."
 
 
 @pytest.fixture
@@ -27,6 +47,7 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_tutor_provider] = lambda: TestTutorProvider()
     settings = get_settings()
     original_database_url = settings.database_url
     original_course_path = settings.course_path

@@ -38,6 +38,11 @@ class HomeworkGeneration(BaseModel):
     focus_category: str
 
 
+class GeneratedExercise(BaseModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    instruction: str = Field(min_length=1, max_length=1_000)
+
+
 class TutorProvider(Protocol):
     def respond(self, context: TutorContext) -> str:
         ...
@@ -46,11 +51,12 @@ class TutorProvider(Protocol):
 def build_tutor_context(settings: Settings, user_message: str) -> TutorContext:
     """Build the teacher prompt from versioned learning documents."""
     learning_dir = settings.course_path.parent / "learning"
-    profile = _read_learning_file(learning_dir / "student_profile.md")
+    local_profile = settings.project_root / ".ai" / "private" / "student_profile.local.md"
+    profile = _read_learning_file(local_profile if local_profile.exists() else learning_dir / "student_profile.md")
     roadmap = _read_learning_file(learning_dir / "learning_roadmap.md")
     method = _read_learning_file(learning_dir / "teaching_method.md")
 
-    prompt = f"""Ты — AI-преподаватель словацкого языка для ученика Sergej.
+    prompt = f"""Ты — AI-преподаватель словацкого языка для русскоговорящего ученика.
 
 Следуй профилю ученика:
 {profile}
@@ -75,6 +81,80 @@ def build_tutor_context(settings: Settings, user_message: str) -> TutorContext:
     return TutorContext(prompt=prompt)
 
 
+def build_math_tutor_context(*, lesson_title: str, theory: str | None, progress: str, user_message: str) -> TutorContext:
+    """Build an isolated maths tutor prompt without Slovak-course context."""
+    prompt = f"""Ты — AI-репетитор по школьной математике для русскоговорящего ученика.
+
+Текущая тема: {lesson_title}
+Прогресс по математике: {progress}
+Краткая теория темы:
+{theory or "Теория пока не добавлена."}
+
+Правила ответа:
+- отвечай по-русски, ясно и по шагам;
+- объясняй ход решения и правило, а не только называй результат;
+- записывай формулы обычными символами без LaTeX: дробь как 3/8, умножение как ×, деление как ÷, корень как √9;
+- каждое действие пиши с новой строки, чтобы все дроби и числа были видны;
+- если вопрос относится к текущему примеру, помоги сделать следующий шаг, не подменяя самостоятельное решение без прямой просьбы;
+- не упоминай словацкий язык, словарь, дневник, домашние задания или прогресс другого курса;
+- не создавай и не меняй записи курса — это только консультация.
+
+Вопрос ученика:
+{user_message}
+"""
+    return TutorContext(prompt=prompt)
+
+
+def build_mistake_chat_context(
+    *,
+    category: str,
+    lesson_title: str | None,
+    original_answer: str,
+    corrected_answer: str,
+    explanation: str,
+    user_message: str,
+) -> TutorContext:
+    """Build a strict, stateless chat context for one selected mistake."""
+    prompt = f"""Ты — помощник для ИЗОЛИРОВАННОГО ЧАТА ПО ОШИБКЕ в словацком A1.
+
+Выбранная ошибка:
+- категория: {category}
+- тема: {lesson_title or "не указана"}
+- ответ ученика: {original_answer}
+- исправление: {corrected_answer}
+- объяснение: {explanation}
+
+Жёсткие границы:
+- работай только с выбранной ошибкой и её правилом;
+- не начинай урок, не веди общий учебный диалог и не переключай тему;
+- не выдавай задания из будущей грамматики;
+- не создавай и не изменяй прогресс, домашние задания, ошибки, словарь, дневник или учебные сессии;
+- отвечай по-русски, используй только короткие словацкие примеры с переводом;
+- если вопрос не относится к этой ошибке, коротко верни разговор к ней;
+- можно попросить ученика написать исправленный вариант, но не утверждай, что ошибка подтверждена или исправлена.
+
+Сообщение ученика:
+{user_message}
+"""
+    return TutorContext(prompt=prompt)
+
+
+def build_generated_exercise_context(*, lesson_title: str, theory: str | None) -> TutorContext:
+    prompt = f"""Ты — генератор упражнений по словацкому языку A1.
+
+Текущая тема: {lesson_title}
+Теория текущей темы:
+{theory or "Теория пока не добавлена."}
+
+СГЕНЕРИРУЙ ОДНО НОВОЕ УПРАЖНЕНИЕ только по текущей теме.
+Не используй будущую грамматику, незнакомую лексику или несколько заданий сразу.
+Ответ ученика должен быть коротким текстом на словацком языке.
+Верни только JSON без markdown:
+{{"question":"вопрос на русском","instruction":"краткая инструкция на русском"}}
+"""
+    return TutorContext(prompt=prompt)
+
+
 def _read_learning_file(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Learning document not found: {path}")
@@ -94,6 +174,13 @@ def parse_homework_generation(response: str) -> HomeworkGeneration:
     if content.startswith("\x60\x60\x60"):
         content = content.removeprefix("\x60\x60\x60").removeprefix("json").removesuffix("\x60\x60\x60").strip()
     return HomeworkGeneration.model_validate(json.loads(content))
+
+
+def parse_generated_exercise(response: str) -> GeneratedExercise:
+    content = response.strip()
+    if content.startswith("\x60\x60\x60"):
+        content = content.removeprefix("\x60\x60\x60").removeprefix("json").removesuffix("\x60\x60\x60").strip()
+    return GeneratedExercise.model_validate(json.loads(content))
 
 
 class CodexCliProvider:

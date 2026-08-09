@@ -22,6 +22,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    def course_paths(self) -> list[Path]:
+        """Return the configured course first, then every other local course."""
+        discovered = sorted((PROJECT_ROOT / "course-content").glob("*/course.yaml"))
+        return list(dict.fromkeys([self.course_path, *discovered]))
+
 
 @lru_cache
 def get_settings() -> Settings:

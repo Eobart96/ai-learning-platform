@@ -158,6 +158,7 @@ class Homework(Base):
     status: Mapped[str] = mapped_column(String(30), default="pending")
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
     submitted_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
