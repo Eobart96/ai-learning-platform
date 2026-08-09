@@ -20,6 +20,7 @@ modules:
           - "При первом знакомстве или с незнакомым человеком используйте Dobrý deň. С друзьями и близкими — Ahoj или Čau."
           - "Примеры: Dobrý deň! Ako sa máte? — Добрый день! Как вы?; Ahoj! Ako sa máš? — Привет! Как ты?; Dovidenia! — До свидания!"
           - "Типичная ошибка: смешивать вежливое обращение máte с неформальным máš. В одном диалоге сохраняйте один стиль."
+          - "Готовая формула для первого контакта: Dobrý deň, ako sa máte? — Добрый день, как вы? Ответ: Ďakujem, dobre. A vy? — Спасибо, хорошо. А вы?"
         objectives: [Поздороваться, попрощаться]
         exercises:
           - type: translation
@@ -36,6 +37,7 @@ modules:
           - "Som z Ruska — Я из России; Bývam v Petrohrade — Я живу в Санкт-Петербурге; Teší ma — Приятно познакомиться."
           - "Вопросы: Ako sa voláš? — Как тебя зовут?; Odkiaľ si? — Откуда ты?; Kde bývaš? — Где ты живёшь?"
           - "Типичная ошибка: Som s Ruska неверно. z означает «из», а s/so — «с кем-то»: Som z Ruska, Som s priateľom."
+          - "Удобная схема представления: Volám sa ... . Som z ... . Bývam v ... . — Меня зовут ... . Я из ... . Я живу в ... ."
         exercises:
           - type: translation
             question: "Переведи: Меня зовут Сергей"
@@ -51,6 +53,7 @@ modules:
           - "С существительными после 2–4 обычно используется форма множественного числа: dve kávy, tri knihy, štyri rožky. После 5 и больше часто используется родительный множественного числа: päť jabĺk, päť fliaš."
           - "Два имеет формы dva для мужского рода и dve для женского/среднего: dva chleby, dve kávy, dve autá."
           - "Типичная ошибка: переносить русское окончание. Формы нужно запоминать вместе с числом: päť jabĺk, а не päť jablká."
+          - "Опора для практики: 1 — jedna kniha, 2–4 — dve/tri/štyri knihy, 5+ — päť kníh. Меняется не только число, но и форма существительного."
         exercises:
           - type: translation
             question: "Переведи: У меня три книги"
@@ -63,6 +66,7 @@ modules:
           - "Месяцы: január, február, marec, apríl, máj, jún, júl, august, september, október, november, december."
           - "Dnes je pondelok. — Сегодня понедельник; Dnes je 21. júla. — Сегодня 21 июля; V pondelok pracujem. — В понедельник я работаю."
           - "Названия дней и месяцев обычно пишутся со строчной буквы. Для даты используются číslo + názov mesiaca: 5. mája."
+          - "Для дня недели используйте v: v pondelok — в понедельник, v piatok — в пятницу. Для вопроса: Kedy? — Когда? V pondelok. — В понедельник."
         exercises:
           - type: translation
             question: "Переведи: Сегодня понедельник"
@@ -75,6 +79,7 @@ modules:
           - "В словацком личное местоимение часто опускается, потому что лицо видно по окончанию глагола: Pracujem. — Я работаю. Учебно можно использовать его для акцента: Ja pracujem."
           - "Ty — неформальное «ты», vy — множественное или вежливое «Вы». Это различие важно сохранять в вопросах и глаголе: Ako sa máš? / Ako sa máte?"
           - "Примеры: Ona je doma. — Она дома; My sa učíme. — Мы учимся; Oni pracujú. — Они работают."
+          - "Для группы мужчин или смешанной группы — oni, для группы женщин — ony: Oni sú kolegovia. — Они коллеги; Ony sú sestry. — Они сёстры."
         exercises:
           - type: translation
             question: "Переведи: Мы друзья"
@@ -88,6 +93,7 @@ modules:
           - "Вопрос образуется интонацией или вопросительным словом: Si doma? — Ты дома?; Kto ste? — Кто вы?; Kde sú? — Где они?"
           - "Отрицание: nie som, nie si, nie je, nie sme, nie ste, nie sú. Пример: Nie som z Bratislavy. — Я не из Братиславы."
           - "Типичная ошибка: путать si и ste. si — ты, ste — вы/Вы; je — он/она/оно, sú — они."
+          - "Короткая опора: ja som, ty si, on/ona je, my sme, vy ste, oni sú. В словацком нельзя пропускать форму byť так же свободно, как русское «я дома»."
         exercises:
           - type: translation
             question: "Переведи: Я дома"
@@ -105,6 +111,7 @@ modules:
           - "Мужские существительные бывают одушевлёнными: učiteľ — учитель, priateľ — друг; и неодушевлёнными: dom — дом, telefón — телефон. Это важно для множественного числа и падежей."
           - "Слова мужского рода согласуются с dobrý/veľký: dobrý dom, veľký stôl, nový učiteľ."
           - "Примеры: To je dom. — Это дом; Mám chlieb. — У меня есть хлеб; Učiteľ je doma. — Учитель дома."
+          - "Перед мужским существительным ставьте мужскую форму определения: nový telefón, veľký dom, dobrý chlieb. Сначала определите род слова, затем выбирайте окончание."
         exercises:
           - type: translation
             question: "Переведи: Это большой дом"
@@ -117,6 +124,7 @@ modules:
           - "Слова женского рода согласуются с dobrá/veľká/nová: dobrá kniha, veľká voda, nová práca."
           - "После 2–4 обычно используется форма на -y/-e: dve knihy, tri kávy, štyri fľaše."
           - "Примеры: Tá kniha je nová. — Эта книга новая; Mám vodu. — У меня есть вода; Káva je dobrá. — Кофе хороший."
+          - "Женскую форму видно по -á: nová práca, dobrá káva, veľká voda. В сочетании прилагательное и существительное должны быть одного рода."
         exercises:
           - type: translation
             question: "Переведи: Это хорошая книга"
@@ -129,6 +137,7 @@ modules:
           - "Слова среднего рода согласуются с dobré/nové/malé: dobré auto, nové mesto, malé jablko."
           - "Во множественном числе часто появляются окончания -á или -ia: autá, mestá, jablká, cvičenia."
           - "Примеры: To je nové auto. — Это новая машина; Mesto je veľké. — Город большой; Jem jablko. — Я ем яблоко."
+          - "Средний род требует -é: malé jablko, nové mesto, dobré cvičenie. Это правило нужно применять и в коротких фразах без глагола."
         exercises:
           - type: translation
             question: "Переведи: Это новое авто"
@@ -141,6 +150,7 @@ modules:
           - "Частые модели: dom → domy, učiteľ → učitelia, kniha → knihy, voda → vody, auto → autá, mesto → mestá."
           - "Слова мужского рода-люди часто имеют окончание -i/-ia: dobrí priatelia, noví učitelia. Для предметов и женского/среднего рода часто используется -é у прилагательного: dobré domy, dobré knihy, dobré autá."
           - "С числительными: jedna kniha, dve knihy, päť kníh; jedno auto, dve autá, päť áut."
+          - "С глаголом byť во множественном числе используйте sú: To sú veľké domy. — Это большие дома. Не Je to veľké domy."
         exercises:
           - type: translation
             question: "Переведи: Это большие дома"
@@ -153,6 +163,7 @@ modules:
           - "Базовые модели: -a часто женский род (kniha), -o/-e средний род (mesto, auto), нулевое окончание часто мужской род (dom, chlieb)."
           - "При изменении числа меняется и существительное: jablko → jablká → jabĺk; fľaša → fľaše → fliaš; rožok → rožky → rožkov."
           - "Полезно учить тройкой: jedna fľaša — dve fľaše — päť fliaš. Так форма сразу связывается с числительным."
+          - "Не угадывайте окончание по-русски: запоминайте новую лексику вместе с тремя формами — один, два-четыре, пять и больше."
         exercises:
           - type: translation
             question: "Переведи: пять яблок"
@@ -170,6 +181,7 @@ modules:
           - "Мужской род обычно имеет -ý/-í: veľký dom, nový učiteľ. Женский — -á: veľká kniha, nová voda. Средний — -é: veľké auto, nové mesto."
           - "Другие полезные пары: malý/malá/malé, starý/stará/staré, lacný/lacná/lacné, drahý/drahá/drahé."
           - "Типичная ошибка: оставлять одну форму для всех родов. Нельзя dobrý kniha или dobrá auto; правильно dobrá kniha, dobré auto."
+          - "Мини-таблица: mužský — nový dom, ženský — nová kniha, stredný — nové auto. Тот же шаблон работает для veľký/veľká/veľké и malý/malá/malé."
         exercises:
           - type: translation
             question: "Переведи: маленькая книга"
@@ -182,6 +194,7 @@ modules:
           - "Для неодушевлённых предметов и большинства женских/средних форм на начальном уровне используем -é: dobré domy, malé knihy, nové autá."
           - "Согласование должно совпадать в обоих словах: veľké mestá, dobré jablká, pekné ženy, dobrí muži."
           - "Типичная ошибка: Je to veľký domy. Нужно Je to veľké domy или, естественнее, Sú to veľké domy."
+          - "Практическая пара: nový učiteľ → noví učitelia, nová kniha → nové knihy, nové auto → nové autá. Люди мужского рода образуют отдельную форму на -í."
         exercises:
           - type: translation
             question: "Переведи: новые учителя"
@@ -190,10 +203,12 @@ modules:
         title: Указательные и притяжательные слова
         order: 3
         theory:
-          - "Указательные слова: ten dom — этот дом, tá kniha — эта книга, to auto — это авто; во множественном числе tí ľudia — эти люди, tie knihy — эти книги."
+          - "Указательные слова: ten dom — тот дом, tá kniha — та книга, to auto — то авто; во множественном числе tí ľudia — те люди, tie knihy — те книги."
+          - "Формы tento/táto/toto значат «этот/эта/это, вот этот» и указывают на близкий или выделенный предмет: Tento veľký dom — этот большой дом; Táto nová kniha — эта новая книга; Toto malé auto — это маленькое авто."
           - "Притяжательные слова: môj dom, moja kniha, moje auto — мой/моя/моё; tvoj, tvoja, tvoje — твой/твоя/твоё."
           - "Форма выбирается по существительному, а не по владельцу: Sergejova kniha — книга Сергея, Sergejovo auto — автомобиль Сергея."
           - "Примеры: Toto je moja kniha. — Это моя книга; Ten dom je veľký. — Тот дом большой."
+          - "Во множественном числе: títo ľudia — эти люди рядом, tieto knihy — эти книги рядом; tí ľudia и tie knihy — те люди и те книги."
         exercises:
           - type: translation
             question: "Переведи: моя книга"
@@ -211,6 +226,7 @@ modules:
           - "Подлежащее, то есть тот, кто выполняет действие, обычно стоит в именительном: Sergej pracuje. — Сергей работает; Kniha je nová. — Книга новая."
           - "В именной части сказуемого также используется базовая форма: Som študent. — Я студент; To je dobrá káva. — Это хороший кофе."
           - "Примеры вопросов: Kto je doma? — Кто дома? Čo je na stole? — Что на столе?"
+          - "Проверка: если предмет сам выполняет действие или описывается, используйте базовую форму: Kniha je nová, Sergej pracuje."
         exercises:
           - type: translation
             question: "Переведи: Сергей читает"
@@ -224,10 +240,11 @@ modules:
           - "Женский род на -a обычно меняет -a на -u: kniha → knihu, voda → vodu, dobrá žena → dobrú ženu."
           - "Средний род часто не меняется: Mám auto. — У меня есть машина; Jem jablko. — Я ем яблоко."
           - "После Mám rád — я люблю — также нужен винительный: Mám rád mäso, zeleninu a ovocie."
+          - "Быстрая схема: vidím čo? — Vidím dom; vidím koho/čo? — Vidím dobrú ženu. Женское -a обычно меняется на -u."
         exercises:
           - type: translation
-            question: "Переведи: Я вижу хорошую женщину"
-            answer: "Vidím dobrú ženu"
+            question: "Переведи: Я читаю новую книгу."
+            answer: "Čítam novú knihu"
       - slug: basic-prepositions
         title: Основные предлоги
         order: 3
@@ -235,8 +252,11 @@ modules:
           - "Предлоги связывают слова и требуют определённой формы: v/vo — в, z/zo — из, na — на/в, s/so — с."
           - "v/vo для места: Som v Bratislave. — Я в Братиславе; Bývam v Petrohrade. — Я живу в Санкт-Петербурге; Som vo vlaku. — Я в поезде."
           - "z/zo обозначает движение или происхождение из места: Som z Ruska. — Я из России; Idem z práce. — Я иду с работы."
+          - "do обозначает направление: куда я иду или еду. Idem do Bratislavy. — Я еду в Братиславу; Idem do práce. — Я иду на работу; Idem do obchodu. — Я иду в магазин."
+          - "Не путайте место и направление: Som v Bratislave. — Я в Братиславе; Idem do Bratislavy. — Я еду в Братиславу. Вопрос где? требует v/vo, вопрос куда? — do."
           - "s/so означает «с кем-то/чем-то»: Som s priateľom. — Я с другом; Káva so sirupom. — Кофе с сиропом."
           - "Типичная ошибка: Bývam sa Petrohrad. Правильно Bývam v Petrohrade — жить в городе."
+          - "Запоминайте предлог вместе с готовой фразой: v meste — в городе, z práce — с работы, s priateľom — с другом. Не переносите русские предлоги буквально."
         exercises:
           - type: translation
             question: "Переведи: Я живу в Петербурге"
@@ -254,6 +274,7 @@ modules:
           - "Полезные формы: pracovať → pracujem, bývať → bývam, čítať → čítam, robiť → robím, hrať → hrám, študovať → študujem."
           - "Примеры: Pracujem v IT. — Я работаю в IT; Bývam v Petrohrade. — Я живу в Петербурге; Čítam knihu. — Я читаю книгу."
           - "Отрицание обычно строится с nie: Nepracujem dnes. — Я сегодня не работаю; Nečítam noviny. — Я не читаю газеты."
+          - "Для уже знакомых глаголов во множественном числе: pracujem — я работаю, pracuješ — ты работаешь, pracuje — он/она работает, pracujeme — мы работаем, pracujú — они работают."
         exercises:
           - type: translation
             question: "Переведи: Я работаю в IT"
@@ -267,6 +288,7 @@ modules:
           - "ísť: idem — я иду, ideš — ты идёшь, ide — он/она идёт. Idem do práce. — Я иду на работу."
           - "vedieť: viem — я знаю/умею, vieš — ты знаешь/умеешь. Viem po slovensky. — Я умею говорить по-словацки."
           - "Типичная ошибка: путать viem — умею/знаю и poznám — знаю человека или знаком с местом."
+          - "Частая форма для просьб и покупок: chcieť → chcem, chceš, chce. Chcem kávu. — Я хочу кофе; Čo chceš? — Что ты хочешь?"
         exercises:
           - type: translation
             question: "Переведи: У меня есть книга"
@@ -280,6 +302,7 @@ modules:
           - "Частица si часто означает действие для себя или заказ: Dám si kávu. — Я возьму кофе; Prosím si vodu. — Мне, пожалуйста, воду."
           - "Позиция важна: správne Učím sa, а не Učím sa? В вопросе Ako sa voláš? частица стоит после вопросительного слова."
           - "Не путайте: učím sa slovenčinu — учу язык; učím slovenčinu — преподаю словацкий."
+          - "Частица sa не переводится отдельным русским словом: Volám sa Sergej — Меня зовут Сергей. Учите всю конструкцию целиком."
         exercises:
           - type: translation
             question: "Переведи: Я учу словацкий"
@@ -297,6 +320,7 @@ modules:
           - "Для сообщения о наличии используем mať: Mám brata a sestru. — У меня есть брат и сестра. Объект после mám стоит в винительном падеже: brat → brata."
           - "Для описания используем byť: Moja sestra je študentka. — Моя сестра студентка; Môj otec pracuje. — Мой отец работает."
           - "Притяжательные формы: môj otec, moja mama, moje dieťa — мой отец, моя мама, мой ребёнок."
+          - "Форма «мой» зависит от родственника: môj brat, moja sestra, moje dieťa. Пол человека, который говорит, на выбор формы не влияет."
         exercises:
           - type: translation
             question: "Переведи: У меня есть брат"
@@ -309,6 +333,7 @@ modules:
           - "Som doma. — Я дома; Bývam v byte. — Я живу в квартире; V kuchyni je stôl. — На кухне есть стол."
           - "Различайте dom — дом как здание и doma — дома как место нахождения. Bývam v dome. — Я живу в доме; Som doma. — Я дома."
           - "Для описания комнаты: Moja izba je malá, ale pekná. — Моя комната маленькая, но красивая."
+          - "Полезная схема описания: V kuchyni je stôl. V izbe je posteľ. Moja izba je malá. Сначала назовите место, затем предмет или признак."
         exercises:
           - type: translation
             question: "Переведи: Я дома"
@@ -321,6 +346,7 @@ modules:
           - "Chcem tri rožky. — Я хочу три булочки; Prosím si dve kávy. — Мне, пожалуйста, два кофе; Máte vodu? — У вас есть вода?"
           - "Цена: Koľko stojí tá kniha? — Сколько стоит эта книга? Stojí päť eur. — Она стоит пять евро. После 2–4: štyri eurá, после 5+: päť eur."
           - "Вежливое завершение: To je všetko, ďakujem. — Это всё, спасибо; Ešte niečo? — Что-нибудь ещё?"
+          - "Готовый заказ: Prosím si dve fľaše vody. — Мне, пожалуйста, две бутылки воды. Вежливое Prosím si безопаснее, чем дословно переводить «дайте мне»."
         exercises:
           - type: translation
             question: "Переведи: Я хочу три булочки"
@@ -333,6 +359,7 @@ modules:
           - "Mám rád mäso. — Я люблю мясо. Если говорит женщина: Mám rada mäso. При перечислении: Mám rád mäso, zeleninu a ovocie."
           - "После Mám rád нужен винительный падеж: zelenina → zeleninu, jablko → jablko, káva → kávu."
           - "Для предпочтений также используйте Nemám rád... — Я не люблю... и Chutí mi... — Мне нравится на вкус."
+          - "Если говорит женщина: Mám rada zeleninu. Если мужчина: Mám rád zeleninu. Меняется форма rád/rada, а не существительное после неё."
         exercises:
           - type: translation
             question: "Переведи: Я люблю мясо"
@@ -346,6 +373,7 @@ modules:
           - "Пример диалога: Dobrý deň. Čo si želáte? — Добрый день. Что желаете? Dám si dve kávy a jednu vodu. — Я возьму два кофе и одну воду."
           - "Завершение: Ešte niečo? — Что-нибудь ещё? Nie, ďakujem. To je všetko. — Нет, спасибо. Это всё."
           - "При заказе числительные согласуются: dve kávy, tri rožky, päť fliaš vody."
+          - "Короткий шаблон заказа: Dám si + заказ. Dám si dve kávy. — Я возьму два кофе. Účet, prosím. — Счёт, пожалуйста."
         exercises:
           - type: dialogue
             instruction: "Закажи два кофе и одну воду"
@@ -357,6 +385,7 @@ modules:
           - "Kde je autobusová zastávka? — Где автобусная остановка?; Kde je stanica? — Где вокзал?; Idem autobusom. — Я еду автобусом."
           - "Для направления: Idem do Bratislavy. — Я еду в Братиславу; Cestujem do práce. — Я еду на работу."
           - "Покупка билета: Jeden lístok, prosím. — Один билет, пожалуйста; Koľko stojí lístok? — Сколько стоит билет?"
+          - "Различайте транспорт и направление: Idem autobusom — еду автобусом; Idem do Bratislavy — еду в Братиславу. Первое отвечает «чем?», второе — «куда?»."
         exercises:
           - type: translation
             question: "Переведи: Где автобусная остановка?"
@@ -369,6 +398,7 @@ modules:
           - "Pracujem v IT. — Я работаю в IT; Pracujem ako AI inžinier. — Я работаю AI-инженером; Mám stretnutie. — У меня встреча."
           - "Вопросы: Kde pracuješ? — Где ты работаешь? Čo robíš? — Чем ты занимаешься? S kým pracuješ? — С кем ты работаешь?"
           - "Не путайте robiť — делать/заниматься и pracovať — работать: Čo robíš? — Чем занимаешься? Pracujem v IT. — Я работаю в IT."
+          - "Готовое представление на работе: Pracujem ako AI inžinier. Pracujem v IT. — Я работаю AI-инженером. Я работаю в IT."
         exercises:
           - type: translation
             question: "Переведи: Я работаю как AI-инженер"
@@ -381,6 +411,7 @@ modules:
           - "Vo voľnom čase hrám videohry. — В свободное время я играю в видеоигры; Rád čítam. — Я люблю читать; Rada pozerám filmy. — Я люблю смотреть фильмы (говорит женщина)."
           - "После hrať с игрой обычно используется прямой объект: Hrám videohry. — Я играю в видеоигры; Hrám Zaklínača 3. — Я играю в Ведьмака 3."
           - "Связывайте ответы: Vo voľnom čase programujem a učím sa matematiku. — В свободное время я программирую и изучаю математику."
+          - "Rád говорит мужчина, rada — женщина: Rád čítam. / Rada čítam. — Я люблю читать. После этого можно добавить конкретное занятие."
         exercises:
           - type: translation
             question: "Переведи: В свободное время я играю в видеоигры"
@@ -398,6 +429,7 @@ modules:
           - "Для мужского говорящего: pracoval, čítal, býval, robil. Для женского: pracovala, čítala, bývala, robila."
           - "Примеры: Včera som pracoval. — Вчера я работал; Večer som čítal knihu. — Вечером я читал книгу."
           - "Отрицание: Včera som nepracoval. — Вчера я не работал. Слово včera — вчера часто ставится в начале предложения."
+          - "Порядок для «я» в прошедшем: Včera + som + форма на -l/-la. Včera som pracoval. Женщина скажет: Včera som pracovala."
         exercises:
           - type: translation
             question: "Переведи: Вчера я работал"
@@ -410,6 +442,7 @@ modules:
           - "С глаголом byť: Včera som bol doma. — Вчера я был дома; Bola v práci. — Она была на работе; Boli sme v meste. — Мы были в городе."
           - "С mať: Mal som čas. — У меня было время; Mala som knihu. — У неё/у меня (жен.) была книга."
           - "С ísť: Išiel som do práce. — Я пошёл на работу; Išla do obchodu. — Она пошла в магазин."
+          - "Форма прошедшего времени согласуется с полом: bol/bola, mal/mala, išiel/išla. Выберите форму говорящего или того, о ком рассказываете."
         exercises:
           - type: translation
             question: "Переведи: Вчера я был дома"
@@ -423,6 +456,7 @@ modules:
           - "Связки: potom — потом, ráno — утром, popoludní — днём, večer — вечером, ale — но, a — и."
           - "Пример: Včera som išiel do práce, potom som nakúpil a večer som bol doma. — Вчера я пошёл на работу, потом сделал покупки, а вечером был дома."
           - "Проверьте согласование рода: мужчина — pracoval/bol/išiel, женщина — pracovala/bola/išla."
+          - "Шаблон рассказа: Včera som ... . Potom som ... . Večer som ... . — Вчера я ... . Потом я ... . Вечером я ... ."
         exercises:
           - type: dialogue
             instruction: "Расскажи по-словацки о своем вчерашнем дне в 3 предложениях"
