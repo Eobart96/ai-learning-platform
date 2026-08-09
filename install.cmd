@@ -8,7 +8,11 @@ echo   AI Learning Platform - installation
 echo ================================================
 echo.
 
-for /f "tokens=2" %%V in ('python --version 2^>^&1') do set "PYTHON_VERSION=%%V"
+set "PYTHON_EXE=python"
+if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
+    set "PYTHON_EXE=%LocalAppData%\Programs\Python\Python312\python.exe"
+)
+for /f "tokens=2" %%V in ('"%PYTHON_EXE%" --version 2^>^&1') do set "PYTHON_VERSION=%%V"
 if not defined PYTHON_VERSION (
     echo [ERROR] Python was not found or could not be started.
     echo Install Python 3.12 or newer from https://www.python.org/downloads/
@@ -49,7 +53,7 @@ if exist "backend\.venv\Scripts\python.exe" (
 
 if not exist "backend\.venv\Scripts\python.exe" (
     echo [1/4] Creating backend virtual environment...
-    python -m venv backend\.venv
+    "%PYTHON_EXE%" -m venv backend\.venv
     if errorlevel 1 goto :failed
 ) else (
     echo [1/4] Virtual environment already exists.
@@ -92,8 +96,8 @@ if not exist ".env" (
 echo.
 echo Installation completed successfully.
 echo.
-echo Start the backend with:     start_backend.cmd
-echo Start the Next.js UI with:  start_frontend.cmd
+echo Start the application with: start.cmd
+echo Or start separately with:   start_backend.cmd and start_frontend.cmd
 echo Open in the browser:        http://127.0.0.1:3000/
 echo.
 echo Optional AI setup:
