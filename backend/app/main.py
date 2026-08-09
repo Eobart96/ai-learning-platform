@@ -48,6 +48,13 @@ from app.routers.homework import router as homework_router
 from app.routers.practice import router as practice_router
 from app.routers.progress import router as progress_router
 from app.routers.vocabulary import router as vocabulary_router
+from app.services.dialogue import (
+    extract_dialogue_assessment as _extract_dialogue_assessment,
+    is_practice_request as _is_practice_request,
+    is_save_progress_command as _is_save_progress_command,
+    is_theory_request as _is_theory_request,
+    normalize_exercise_answer as _normalize_exercise_answer,
+)
 from app.schemas.progress import MistakeResponse
 from app.schemas.vocabulary import VocabularyResponse
 from app.services.lesson_lookup import get_lesson_title as _lesson_title
@@ -1157,74 +1164,6 @@ def delete_dialogue_session(session_id: int, db: Session = Depends(get_db)) -> D
     db.delete(session)
     db.commit()
     return DialogueSessionDeleteResponse(session_id=session_id, deleted=True)
-
-
-def _is_save_progress_command(message: str) -> bool:
-    normalized = " ".join(message.lower().strip().split())
-    return normalized in {
-        "сохрани прогресс",
-        "сохранить прогресс",
-        "save progress",
-    }
-
-
-def _extract_dialogue_assessment(response: str) -> tuple[str, TutorAssessment | None]:
-    """Strip the agent-only assessment marker and return its structured payload."""
-    match = re.search(
-        r"\s*<mistake-assessment>(\{.*?\})</mistake-assessment>\s*$",
-        response,
-        flags=re.DOTALL,
-    )
-    if match is None:
-        return response.strip(), None
-    visible_response = response[:match.start()].strip()
-    try:
-        assessment = TutorAssessment.model_validate(json.loads(match.group(1)))
-    except (ValueError, TypeError, json.JSONDecodeError):
-        return response.strip(), None
-    return visible_response, assessment
-
-
-def _is_theory_request(message: str) -> bool:
-    normalized = " ".join(message.lower().strip().split())
-    return any(
-        phrase in normalized
-        for phrase in (
-            "где теория",
-            "покажи теорию",
-            "объясни теорию",
-            "объясни тему",
-            "начнем урок",
-            "начнём урок",
-            "начать урок",
-            "продолжим занятия",
-        )
-    )
-
-
-def _is_practice_request(message: str) -> bool:
-    normalized = " ".join(message.lower().strip().split())
-    return any(
-        phrase in normalized
-        for phrase in (
-            "готов к упражнению",
-            "готов к практике",
-            "давай упражнение",
-            "давай практику",
-            "перейдем к практике",
-            "перейдём к практике",
-            "практика",
-        )
-    )
-
-
-def _normalize_exercise_answer(value: str) -> str:
-    trimmed = value.lower().strip()
-    while trimmed and trimmed[-1] in ".!?;:»”\"'":
-        trimmed = trimmed[:-1].rstrip()
-    while trimmed and trimmed[0] in "«“\"'":
-        trimmed = trimmed[1:].lstrip()
-    return " ".join(trimmed.split())
 
 
 def _save_dialogue_exercise_answer(db: Session, lesson: Lesson | None, message: str) -> Exercise | None:
