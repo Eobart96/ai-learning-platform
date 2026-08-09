@@ -1,0 +1,36 @@
+name: Сообщение об ошибке
+description: Помогите воспроизвести проблему в AI Learning Platform
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за помощь. Не публикуйте API-ключи, .env, SQLite-базу или личные учебные данные.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Что произошло?
+      description: Кратко опишите наблюдаемое поведение.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Как воспроизвести?
+      placeholder: |
+        1. Открыть…
+        2. Нажать…
+        3. Увидеть…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый результат
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: ОС, браузер и версия проекта

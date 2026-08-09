@@ -29,3 +29,8 @@ logs/
 .ai/tmp/
 .ai/chat_history.md
 .ai/token_usage.json
+
+# Local profiles and recovery artifacts: never add them to a public repository.
+.ai/private/
+_backups/
+head_main.py

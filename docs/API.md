@@ -1,6 +1,6 @@
 # API
 
-Актуализировано: 2026-07-26. Базовый префикс — `/api/v1`.
+Актуализировано: 2026-08-09. Базовый префикс — `/api/v1`.
 Полная интерактивная схема доступна на `http://127.0.0.1:8000/docs`.
 
 ## Служебные маршруты
@@ -13,7 +13,8 @@
 ## Курс и уроки
 
 - `GET /api/v1/courses` — список курсов;
-- `GET /api/v1/lessons/{lesson_id}` — теория, упражнения и последние ответы;
+- `GET /api/v1/lessons/{lesson_id}` — теория, исходные `exercises`, отдельные `generated_exercises` и последние ответы;
+- `POST /api/v1/lessons/{lesson_id}/generated-exercises` — создать и сохранить дополнительное задание для выбранной темы;
 - `GET /api/v1/lessons/{lesson_id}/vocabulary` — слова урока;
 - `POST /api/v1/lessons/{lesson_id}/answer` — проверка и сохранение ответа;
 - `POST /api/v1/lessons/{lesson_id}/complete` — завершение урока;
@@ -39,10 +40,14 @@
 
 - `GET /api/v1/progress` — завершённые темы, ответы, активные и исправленные ошибки;
 - `POST /api/v1/progress/reset` — подтверждаемый сброс локального прогресса;
-- `GET /api/v1/progress/mistakes` — только активные ошибки;
-- `GET /api/v1/progress/mistakes/next` — следующая ошибка для повторения;
-- `POST /api/v1/progress/mistakes/{mistake_id}/practice` — учёт отработки;
-- `POST /api/v1/progress/mistakes/{mistake_id}/resolve` — подтверждение исправления.
+- `GET /api/v1/progress/mistakes?course_slug=slovak-a1` — только активные ошибки указанного курса;
+- `GET /api/v1/progress/mistakes/next?course_slug=slovak-a1` — следующая ошибка указанного курса для повторения;
+- `POST /api/v1/progress/mistakes/{mistake_id}/practice?course_slug=slovak-a1` — учёт отработки только в указанном курсе;
+- `POST /api/v1/progress/mistakes/{mistake_id}/chat?course_slug=slovak-a1` — изолированный AI-разбор выбранной ошибки; принимает `message` и не меняет учебный прогресс;
+- `POST /api/v1/progress/mistakes/{mistake_id}/resolve?course_slug=slovak-a1` — подтверждение исправления только в указанном курсе.
+
+Ошибки и действия над ошибками изолированы по `course_slug`: данные
+`slovak-a1` и `math-exam-prep` не смешиваются и не доступны друг через друга.
 
 ## Диалоги
 
