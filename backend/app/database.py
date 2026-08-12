@@ -37,6 +37,11 @@ def ensure_sqlite_schema(database_engine) -> None:
         return
     columns = {column["name"] for column in inspect(database_engine).get_columns("homework")}
     with database_engine.begin() as connection:
+        exercise_columns = {column["name"] for column in inspect(database_engine).get_columns("exercises")}
+        if "test_cases" not in exercise_columns:
+            connection.execute(text("ALTER TABLE exercises ADD COLUMN test_cases TEXT"))
+        if "hint" not in exercise_columns:
+            connection.execute(text("ALTER TABLE exercises ADD COLUMN hint TEXT"))
         if "mistake_id" not in columns:
             connection.execute(text("ALTER TABLE homework ADD COLUMN mistake_id INTEGER"))
         if "submitted_answer" not in columns:

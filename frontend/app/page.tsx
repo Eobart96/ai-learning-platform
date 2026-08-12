@@ -12,6 +12,7 @@ import { HomeworkScreen } from "./components/HomeworkScreen";
 import { LearningScreen } from "./components/LearningScreen";
 import { MathScreen } from "./components/MathScreen";
 import { MathPracticeScreen } from "./components/MathPracticeScreen";
+import { PythonScreen } from "./components/PythonScreen";
 import { getCodexStatus, resetProgress, startCodexLogin } from "./lib/api";
 
 const themeStorageKey = "ai-learning-platform-theme";
@@ -70,7 +71,7 @@ export default function HomePage() {
 
   const handleSelectSubject = (nextSubject: LearningSubject) => {
     setSubject(nextSubject);
-    const nextView: AppView = nextSubject === "mathematics" ? "mathematics" : "learning";
+    const nextView: AppView = nextSubject === "mathematics" ? "mathematics" : nextSubject === "python" ? "python" : "learning";
     setActiveView(nextView);
     setLegacyHeader((currentState) => ({ ...currentState, activeView: nextView }));
   };
@@ -108,6 +109,7 @@ export default function HomePage() {
       {activeView === "math_practice" && <MathPracticeScreen />}
       {activeView === "math_tests" && <TestsScreen courseSlug="math-exam-prep" />}
       {activeView === "math_mistakes" && <MistakesScreen courseSlug="math-exam-prep" />}
+      {activeView === "python" && <PythonScreen />}
       {activeView === "exercises" && <ExercisesScreen />}
       {activeView === "tests" && <TestsScreen />}
       {activeView === "mistakes" && <MistakesScreen courseSlug="slovak-a1" onPracticeStarted={handlePracticeStarted} />}

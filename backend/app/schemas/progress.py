@@ -29,3 +29,7 @@ class MistakeChatRequest(BaseModel):
 
 class MistakeChatResponse(BaseModel):
     response: str
+
+
+class ResolveAllMistakesResponse(BaseModel):
+    resolved_count: int

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.tutor import TutorAssessment
@@ -12,6 +14,10 @@ class ExerciseResponse(BaseModel):
     is_completed: bool = False
     is_resolved: bool = False
     score: int | None = None
+    expected_output: str | None = None
+    test_cases: list[dict[str, str]] = Field(default_factory=list)
+    hint: str | None = None
+    explanation: str | None = None
 
 
 class LessonResponse(BaseModel):
@@ -41,4 +47,20 @@ class MathTutorChatRequest(BaseModel):
 
 
 class MathTutorChatResponse(BaseModel):
+    response: str
+
+
+class ExerciseChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2_000)
+
+
+class ExerciseChatRequest(BaseModel):
+    exercise_id: int
+    message: str = Field(min_length=1, max_length=2_000)
+    draft_answer: str = Field(default="", max_length=4_000)
+    history: list[ExerciseChatMessage] = Field(default_factory=list, max_length=6)
+
+
+class ExerciseChatResponse(BaseModel):
     response: str

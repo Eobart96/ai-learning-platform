@@ -37,7 +37,19 @@ def test_math_exam_preparation_course_is_loaded(client):
     roadmap = client.get("/api/v1/roadmap", params={"course_slug": "math-exam-prep"})
     assert roadmap.status_code == 200
     assert len(roadmap.json()) == 5
+    assert [module["slug"] for module in roadmap.json()] == ["arithmetic", "fractions", "powers", "linear-equations", "functions-and-graphs"]
     assert roadmap.json()[0]["lessons"][0]["slug"] == "order-of-operations"
+
+
+def test_python_exercises_expose_browser_test_cases_and_learning_support(client):
+    roadmap = client.get("/api/v1/roadmap", params={"course_slug": "python-course"}).json()
+    lesson = client.get(f"/api/v1/lessons/{roadmap[0]['lessons'][0]['id']}")
+
+    assert lesson.status_code == 200
+    first_exercise = lesson.json()["exercises"][0]
+    assert first_exercise["test_cases"] == [{"stdin": "", "expected_output": "Ari\nКот\nЯ учусь Python!"}]
+    assert first_exercise["hint"]
+    assert first_exercise["explanation"]
 
 
 def test_math_tutor_answers_only_for_math_lessons(client):
@@ -56,6 +68,37 @@ def test_math_tutor_answers_only_for_math_lessons(client):
     blocked = client.post(
         f"/api/v1/math/lessons/{slovak_lesson_id}/chat",
         json={"message": "Вопрос не по математике"},
+    )
+    assert blocked.status_code == 409
+
+
+def test_exercise_chat_is_scoped_to_the_selected_slovak_exercise(client):
+    lesson = client.get("/api/v1/lessons/1").json()
+    exercise_id = lesson["exercises"][0]["id"]
+
+    response = client.post(
+        "/api/v1/lessons/1/exercise-chat",
+        json={
+            "exercise_id": exercise_id,
+            "message": "Почему здесь такая форма?",
+            "draft_answer": "Ja som student",
+            "history": [{"role": "assistant", "content": "Смотри на глагол."}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["response"] == "Тестовый ответ преподавателя."
+
+    not_in_lesson = client.post(
+        "/api/v1/lessons/1/exercise-chat",
+        json={"exercise_id": 999_999, "message": "Вопрос"},
+    )
+    assert not_in_lesson.status_code == 404
+
+    math_lesson_id = client.get("/api/v1/roadmap", params={"course_slug": "math-exam-prep"}).json()[0]["lessons"][0]["id"]
+    blocked = client.post(
+        f"/api/v1/lessons/{math_lesson_id}/exercise-chat",
+        json={"exercise_id": 1, "message": "Вопрос"},
     )
     assert blocked.status_code == 409
 

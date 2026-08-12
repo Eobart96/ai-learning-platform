@@ -1,0 +1,427 @@
+course:
+  slug: python-course
+  title: Python · от основ до проектов
+  subject: python
+  language: ru
+  teaching_language: ru
+  level: beginner-to-specialization
+
+modules:
+  - slug: part-1-foundations
+    title: "Часть 1 · Основы Python"
+    order: 1
+    lessons:
+      - slug: first-program
+        title: "1. Первая программа и print()"
+        order: 1
+        theory:
+          - "print() выводит текст, числа и результаты вычислений. Текст обязательно заключай в кавычки: print(\"Привет, мир!\"). Без кавычек Python будет искать переменную с таким именем."
+          - "Каждый вызов print() начинает новую строку. Можно вывести несколько частей через запятую: print(\"Возраст:\", 14); Python сам добавит пробел между ними."
+          - "Числа пишут без кавычек, поэтому Python вычисляет выражение: print(3 + 4) выведет 7, а print(\"3 + 4\") выведет сам текст. Операторы: +, -, *, /, %, **."
+          - "Если соединяешь текст оператором +, число сначала преобразуй: str(7). В коротких учебных программах начинай с нескольких print(), а в теме циклов научишься не повторять одинаковые строки вручную."
+        exercises:
+          - type: python_code
+            question: "1.1 Первые слова: выведи имя, любимое животное и фразу «Я учусь Python!» — каждое отдельным print()."
+            instruction: 'print("Ari")\nprint("Кот")\nprint("Я учусь Python!")'
+            answer: "Ari\nКот\nЯ учусь Python!"
+            test_cases:
+              - stdin: ""
+                expected_output: "Ari\nКот\nЯ учусь Python!"
+            hint: "Текст должен быть в кавычках, а для трёх строк нужны три вызова print()."
+            explanation: "Каждый print() выводит переданный текст и переводит курсор на новую строку."
+          - type: python_code
+            question: "1.2 Математика в print(): вычисли минуты в сутках, секунды в часе и дни в трёх невисокосных годах."
+            instruction: 'print(24 * 60)\nprint(60 * 60)\nprint(365 * 3)'
+            answer: "1440\n3600\n1095"
+            test_cases:
+              - stdin: ""
+                expected_output: "1440\n3600\n1095"
+            hint: "Числа не заключай в кавычки: тогда * выполнит умножение."
+            explanation: "Python сначала вычисляет каждое выражение, затем print() показывает результат."
+          - type: python_code
+            question: "1.3 Смешанный вывод: дважды выведи «Площадь квадрата со стороной 7 равна 49» — сначала через запятые в print(), затем через + и str()."
+            instruction: 'side = 7\nprint("Площадь квадрата со стороной", side, "равна", side * side)\nprint("Площадь квадрата со стороной " + str(side) + " равна " + str(side * side))'
+            answer: "Площадь квадрата со стороной 7 равна 49\nПлощадь квадрата со стороной 7 равна 49"
+            test_cases:
+              - stdin: ""
+                expected_output: "Площадь квадрата со стороной 7 равна 49\nПлощадь квадрата со стороной 7 равна 49"
+            hint: "Запятая в print() сама разделяет части пробелом; для + число нужно обернуть в str()."
+            explanation: "Оператор + соединяет строки, но не может напрямую соединить строку и число."
+          - type: python_code
+            question: "1.4 Таблица умножения на 3: выведи пять строк от «3 x 1 = 3» до «3 x 5 = 15», не записывая результаты вручную."
+            instruction: 'print("3 x 1 =", 3 * 1)\nprint("3 x 2 =", 3 * 2)\nprint("3 x 3 =", 3 * 3)\nprint("3 x 4 =", 3 * 4)\nprint("3 x 5 =", 3 * 5)'
+            answer: "3 x 1 = 3\n3 x 2 = 6\n3 x 3 = 9\n3 x 4 = 12\n3 x 5 = 15"
+            test_cases:
+              - stdin: ""
+                expected_output: "3 x 1 = 3\n3 x 2 = 6\n3 x 3 = 9\n3 x 4 = 12\n3 x 5 = 15"
+            hint: "В каждой строке оставь текст в кавычках, а произведение — без кавычек."
+            explanation: "Пока используются пять print(); в теме циклов эта же таблица будет строиться через for."
+      - slug: variables-and-types
+        title: "2. Переменные и типы данных"
+        order: 2
+        theory:
+          - "Переменная — подписанная коробка со значением: name = \"Алёша\", age = 13. После присваивания имя используют без кавычек: print(name). Переменную можно заменить новым значением: age = age + 1."
+          - "Основные типы: str — текст в кавычках; int — целое число; float — дробь с точкой; bool — True или False с заглавной буквы. Python различает name и Name."
+          - "Имя может содержать буквы, цифры и _, но не может начинаться с цифры и содержать пробел. В реальном коде выбирай английские понятные имена: student_age, favorite_color. # начинает комментарий — Python его не выполняет."
+          - "Операторы работают с переменными так же, как с числами: +, -, *, /, //, %, **. Деление / даёт float, // — целую часть, % — остаток. Для окружности методичка предлагает PI = 3.14159 и round(значение, 2); позже вместо ручной PI используй math.pi."
+        exercises:
+          - type: python_code
+            question: "2.1 Знакомство с переменными: создай name, age, height и is_student, затем выведи каждую переменную с новой строки."
+            instruction: 'name = "Алёша"\nage = 14\nheight = 172.5\nis_student = True\n\nprint(name)\nprint(age)\nprint(height)\nprint(is_student)'
+            answer: "Алёша\n14\n172.5\nTrue"
+            test_cases:
+              - stdin: ""
+                expected_output: "Алёша\n14\n172.5\nTrue"
+            hint: "Текст пиши в кавычках, дробь — через точку, а True — с заглавной буквы."
+            explanation: "У переменных разные типы: str, int, float и bool. print() получает значения по именам, без кавычек."
+          - type: python_code
+            question: "2.2 Обмен значений: задай a = 10 и b = 20, выведи их до обмена, поменяй местами через временную переменную и выведи после обмена."
+            instruction: 'a = 10\nb = 20\nprint("До:", a, b)\ntemp = a\na = b\nb = temp\nprint("После:", a, b)'
+            answer: "До: 10 20\nПосле: 20 10"
+            test_cases:
+              - stdin: ""
+                expected_output: "До: 10 20\nПосле: 20 10"
+            hint: "Сначала сохрани старое a в temp, иначе значение 10 потеряется."
+            explanation: "Временная переменная хранит старое значение, пока a и b получают новые. Позже можно сократить это до a, b = b, a."
+          - type: python_code
+            question: "2.3 Операции с типами: задай x = 17 и y = 5; выведи сумму, разность, произведение, деление, целочисленное деление, остаток и степень."
+            instruction: 'x = 17\ny = 5\nprint("Сумма:", x + y)\nprint("Разность:", x - y)\nprint("Произведение:", x * y)\nprint("Деление:", x / y)\nprint("Целое дел-е:", x // y)\nprint("Остаток:", x % y)\nprint("Степень:", x ** y)'
+            answer: "Сумма: 22\nРазность: 12\nПроизведение: 85\nДеление: 3.4\nЦелое дел-е: 3\nОстаток: 2\nСтепень: 1419857"
+            test_cases:
+              - stdin: ""
+                expected_output: "Сумма: 22\nРазность: 12\nПроизведение: 85\nДеление: 3.4\nЦелое дел-е: 3\nОстаток: 2\nСтепень: 1419857"
+            hint: "Вспомни: / даёт дробь, // — целую часть, % — остаток, ** — степень."
+            explanation: "Одни и те же числа дают разные результаты в зависимости от операции; 17 = 5 × 3 + 2, поэтому 17 // 5 равно 3, а 17 % 5 равно 2."
+          - type: python_code
+            question: "2.4 Площадь и периметр круга: задай PI = 3.14159 и radius = 7; выведи площадь и длину окружности, округлив до двух знаков."
+            instruction: 'PI = 3.14159\nradius = 7\narea = PI * radius ** 2\nlength = 2 * PI * radius\nprint("Площадь:", round(area, 2))\nprint("Окружность:", round(length, 2))'
+            answer: "Площадь: 153.94\nОкружность: 43.98"
+            test_cases:
+              - stdin: ""
+                expected_output: "Площадь: 153.94\nОкружность: 43.98"
+            hint: "Площадь: PI * radius ** 2; длина: 2 * PI * radius; округление — round(..., 2)."
+            explanation: "** вычисляет квадрат радиуса раньше умножения. В будущих локальных проектах используй math.pi вместо ручного значения PI."
+      - slug: input-and-conversion
+        title: "3. Ввод данных и преобразования"
+        order: 3
+        theory:
+          - "input(\"Вопрос: \") останавливает программу и возвращает введённое значение как str, даже если введено 12. Поэтому print(age + 1) после простого input() приведёт к ошибке."
+          - "Для вычислений преобразуй ввод сразу: age = int(input(\"Возраст: \")); для дробей используй float(input(...)); str(x) превращает значение обратно в текст."
+          - "В браузерном редакторе значения для нескольких input() указывай по одному на строку. Например, для суммы двух чисел введи 8, затем 3: программа прочитает их последовательно."
+          - "f-строка объединяет текст и данные: f\"Итого секунд: {total}\". Внутри {} можно подставлять переменные и выражения. Для температуры из методички: °F = °C × 9/5 + 32, K = °C + 273.15; округление — round(value, 1)."
+        exercises:
+          - type: python_code
+            question: "3.1 Персональное приветствие: запроси имя и возраст, затем выведи «Привет, [имя]!» и «Тебе [возраст] лет.»."
+            instruction: 'name = input("Как тебя зовут? ")\nage = input("Сколько лет? ")\nprint("Привет,", name + "!")\nprint("Тебе", age, "лет.")'
+            answer: "Как тебя зовут? Маша\nСколько лет? 13\nПривет, Маша!\nТебе 13 лет."
+            test_cases:
+              - stdin: "Маша\n13"
+                expected_output: "Как тебя зовут? Сколько лет? Привет, Маша!\nТебе 13 лет."
+              - stdin: "Ari\n14"
+                expected_output: "Как тебя зовут? Сколько лет? Привет, Ari!\nТебе 14 лет."
+            hint: "Здесь возраст пока только выводится, поэтому его можно оставить строкой."
+            explanation: "input() возвращает строку. Запятые в print() добавляют пробелы, а name + \"!\" приклеивает восклицательный знак без пробела."
+          - type: python_code
+            question: "3.2 Калькулятор суммы: запроси два целых числа и выведи их сумму, разность и произведение."
+            instruction: 'a = int(input("Введи первое число: "))\nb = int(input("Введи второе число: "))\nprint("Сумма:", a + b)\nprint("Разность:", a - b)\nprint("Произведение:", a * b)'
+            answer: "Введи первое число: 8\nВведи второе число: 3\nСумма: 11\nРазность: 5\nПроизведение: 24"
+            test_cases:
+              - stdin: "8\n3"
+                expected_output: "Введи первое число: Введи второе число: Сумма: 11\nРазность: 5\nПроизведение: 24"
+              - stdin: "12\n5"
+                expected_output: "Введи первое число: Введи второе число: Сумма: 17\nРазность: 7\nПроизведение: 60"
+            hint: "Оберни каждый input() в int(), иначе + соединит два текста, а не сложит числа."
+            explanation: "int() превращает введённую строку в целое число, после чего доступны арифметические операции."
+          - type: python_code
+            question: "3.3 Сколько пройдёт секунд: запроси часы, минуты и секунды, пересчитай всё в секунды и выведи итог."
+            instruction: 'h = int(input("Часы: "))\nm = int(input("Минуты: "))\ns = int(input("Секунды: "))\ntotal = h * 3600 + m * 60 + s\nprint(f"Итого секунд: {total}")'
+            answer: "Часы: 1\nМинуты: 30\nСекунды: 45\nИтого секунд: 5445"
+            test_cases:
+              - stdin: "1\n30\n45"
+                expected_output: "Часы: Минуты: Секунды: Итого секунд: 5445"
+              - stdin: "2\n0\n5"
+                expected_output: "Часы: Минуты: Секунды: Итого секунд: 7205"
+            hint: "Один час — 3600 секунд, одна минута — 60 секунд."
+            explanation: "Сначала все единицы переводятся в секунды, затем складываются. f-строка подставляет total внутрь текста."
+          - type: python_code
+            question: "3.4 Конвертер температур: запроси температуру в °C, выведи её в °F и K, округлив результаты до одного знака."
+            instruction: 'celsius = float(input("Температура в °C: "))\nfahrenheit = celsius * 9 / 5 + 32\nkelvin = celsius + 273.15\nprint(f"{celsius}°C = {round(fahrenheit, 1)}°F")\nprint(f"{celsius}°C = {round(kelvin, 1)} K")'
+            answer: "Температура в °C: 100\n100.0°C = 212.0°F\n100.0°C = 373.1 K"
+            test_cases:
+              - stdin: "100"
+                expected_output: "Температура в °C: 100.0°C = 212.0°F\n100.0°C = 373.1 K"
+              - stdin: "0"
+                expected_output: "Температура в °C: 0.0°C = 32.0°F\n0.0°C = 273.1 K"
+            hint: "Формулы: F = C * 9 / 5 + 32; K = C + 273.15. Для дроби нужен float()."
+            explanation: "round(value, 1) округляет число до одного знака после точки. Ввод 0°C проверяет, не работает ли решение только для примера 100°C."
+      - slug: conditions
+        title: "4. Условия if / elif / else"
+        order: 4
+        theory:
+          - "if выполняет код, только когда условие истинно. После условия ставь двоеточие, а тело блока сдвигай на четыре пробела: отступы в Python — часть синтаксиса."
+          - "Сравнения: == равно, != не равно, >, <, >=, <=. Не путай = — присваивание — с == — проверкой. Остаток n % 2 помогает проверить чётность."
+          - "elif добавляет следующую проверку, else срабатывает, если всё выше ложно. Python проверяет цепочку сверху вниз и останавливается на первом True — поэтому границу >= 90 ставят раньше >= 75."
+          - "Логические операторы and, or и not объединяют условия. Для проверки треугольника нужны сразу три условия через and; после проверки существования можно отдельной вложенной цепочкой определить равносторонний, равнобедренный или разносторонний."
+        exercises:
+          - type: python_code
+            question: "Выведи «положительное», если x больше нуля, иначе «не положительное»."
+            instruction: "x = 7\nif x > 0:\n    print(\"положительное\")\nelse:\n    print(\"не положительное\")"
+            answer: "положительное"
+      - slug: loops
+        title: "5. Циклы while и for"
+        order: 5
+        theory:
+          - "while повторяет блок, пока условие True. У счётчика должно быть изменение внутри цикла: i = i - 1 или i -= 1; иначе программа не закончится."
+          - "for удобен, когда число повторов известно заранее. range(5) даёт 0..4, range(1, 6) — 1..5, а конечная граница не включается. Можно перебирать и строку: for letter in \"Python\"."
+          - "break немедленно завершает цикл, continue пропускает только текущий шаг. Например, continue с условием i % 2 == 0 позволяет пропустить чётные числа."
+          - "Для накопления суммы создай total = 0 и прибавляй каждое i. В игре «Угадай число» из методички while читает попытки, сравнивает их с secret = 42, ведёт attempts и завершается после правильного ответа. Не запускай намеренно бесконечный while в браузере."
+        exercises:
+          - type: python_code
+            question: "Выведи числа от 1 до 3 — каждое с новой строки."
+            instruction: "for number in range(1, 4):\n    print(number)"
+            answer: "1\n2\n3"
+      - slug: lists
+        title: "6. Списки"
+        order: 6
+        theory:
+          - "Список хранит несколько значений: fruits = [\"яблоко\", \"банан\", \"вишня\"]. Индексация начинается с 0: fruits[0] — первый элемент, fruits[-1] — последний."
+          - "append() добавляет в конец, remove() удаляет по значению, len() считает элементы, а \"яблоко\" in fruits проверяет наличие. Метод pop() удаляет и возвращает последний элемент."
+          - "Список удобно перебирать: for color in colors: print(\"Цвет:\", color). Внутри цикла можно строить нумерацию через range или enumerate; в методичке фильмы выводятся с номером 1, 2, 3…."
+          - "max(), min(), sum() и count() помогают анализировать оценки. Выражение [g for g in grades if g != 2] создаёт новый список без двоек. Список также может быть стеком: append — положить на вершину, pop — снять, stack[-1] — посмотреть вершину."
+        exercises:
+          - type: python_code
+            question: "Добавь «арбуз» в список и выведи его длину."
+            instruction: "fruits = [\"яблоко\", \"банан\"]\nfruits.append(\"арбуз\")\nprint(len(fruits))"
+            answer: "3"
+      - slug: functions
+        title: "7. Функции и return"
+        order: 7
+        theory:
+          - "Функция — блок кода с именем: def greet(): ... Затем её вызывают: greet(). Это убирает копирование одинакового кода и делает программу понятнее."
+          - "Параметры передают функции данные: def greet(name): или def area(width, height):. При вызове greet(\"Маша\") Python подставляет аргумент в параметр."
+          - "return возвращает значение вызывающему коду и сразу завершает функцию. Поэтому add(a, b) обычно делает return a + b, а print(add(2, 3)) показывает 5. print внутри функции только выводит текст и сам возвращает None."
+          - "Для калькулятора методичка разделяет add, subtract, multiply и divide; в divide сначала проверяют b == 0. Рекурсия вызывает функцию из неё самой, но ей нужен базовый случай: factorial(0) возвращает 1. Рекурсивный fibonacci(40) медленный — для больших значений выбирай цикл или кэширование."
+        exercises:
+          - type: python_code
+            question: "Напиши функцию area и выведи площадь прямоугольника 3 × 4."
+            instruction: "def area(width, height):\n    return width * height\n\nprint(area(3, 4))"
+            answer: "12"
+  - slug: part-2-core
+    title: "Часть 2 · Структуры данных и ООП"
+    order: 2
+    lessons:
+      - slug: strings
+        title: "8. Строки и f-строки"
+        order: 1
+        theory: ["Строки поддерживают индексы, срезы, методы и f-строки для подстановки значений."]
+        exercises:
+          - type: python_code
+            question: "Выведи имя в верхнем регистре."
+            instruction: "name = \"Ari\"\nprint(name.upper())"
+            answer: "ARI"
+      - slug: dictionaries
+        title: "9. Словари"
+        order: 2
+        theory: ["Словарь связывает ключи и значения. get() позволяет безопасно получать данные."]
+        exercises:
+          - type: python_code
+            question: "Выведи город из словаря profile."
+            instruction: "profile = {\"name\": \"Ari\", \"city\": \"Moscow\"}\nprint(profile[\"city\"])"
+            answer: "Moscow"
+      - slug: tuples-and-sets
+        title: "10. Кортежи и множества"
+        order: 3
+        theory: ["Кортеж неизменяем, а множество хранит только уникальные элементы."]
+        exercises:
+          - type: python_code
+            question: "Выведи количество уникальных чисел."
+            instruction: "numbers = [1, 1, 2, 3, 3]\nprint(len(set(numbers)))"
+            answer: "3"
+      - slug: files
+        title: "11. Работа с файлами"
+        order: 4
+        theory: ["Файлы открывают через with open(...). Всегда указывай encoding='utf-8' для русского текста."]
+        exercises:
+          - type: python_code
+            question: "Собери две строки в одну, как при чтении текстового файла. Реальная файловая система доступна только в локальном Python."
+            instruction: "lines = [\"Первая строка\", \"Вторая строка\"]\nprint(\"\\n\".join(lines))"
+            answer: "Первая строка\nВторая строка"
+      - slug: modules
+        title: "12. Модули и библиотеки"
+        order: 5
+        theory: ["Модули дают готовые функции. В редакторе заранее доступны math и random без import."]
+        exercises:
+          - type: python_code
+            question: "Найди квадратный корень из 81 через math."
+            instruction: "print(math.sqrt(81))"
+            answer: "9.0"
+      - slug: exceptions
+        title: "13. Обработка ошибок"
+        order: 6
+        theory: ["try/except позволяет обработать ожидаемую ошибку и дать понятный результат."]
+        exercises:
+          - type: python_code
+            question: "Безопасно преобразуй строку «не число» в int и выведи «ошибка»."
+            instruction: "try:\n    int(\"не число\")\nexcept ValueError:\n    print(\"ошибка\")"
+            answer: "ошибка"
+      - slug: oop
+        title: "14. Объектно-ориентированное программирование"
+        order: 7
+        theory: ["Класс описывает данные и поведение объектов. __init__ задаёт начальное состояние."]
+        exercises:
+          - type: python_code
+            question: "Создай класс Student с именем и выведи его имя."
+            instruction: "class Student:\n    def __init__(self, name):\n        self.name = name\n\nstudent = Student(\"Ari\")\nprint(student.name)"
+            answer: "Ari"
+  - slug: part-3-professional
+    title: "Часть 3 · Профессиональные инструменты"
+    order: 3
+    lessons:
+      - slug: generators
+        title: "15. Генераторы и итераторы"
+        order: 1
+        theory: ["Генератор выдаёт значения по одному и экономит память."]
+        exercises:
+          - type: python_code
+            question: "Создай генератор квадратов от 1 до 3 и выведи список."
+            instruction: "squares = (number ** 2 for number in range(1, 4))\nprint(list(squares))"
+            answer: "[1, 4, 9]"
+      - slug: decorators
+        title: "16. Декораторы"
+        order: 2
+        theory: ["Декоратор оборачивает функцию и добавляет поведение без изменения её кода."]
+        exercises:
+          - type: python_code
+            question: "Напиши декоратор, который выводит «старт» перед вызовом функции."
+            instruction: "def announce(func):\n    def wrapper():\n        print(\"старт\")\n        func()\n    return wrapper\n\n@announce\ndef hello():\n    print(\"привет\")\n\nhello()"
+            answer: "старт\nпривет"
+      - slug: algorithms
+        title: "17. Алгоритмы и структуры данных"
+        order: 3
+        theory: ["Алгоритм — последовательность шагов. Важно оценивать время и память решения."]
+        exercises:
+          - type: python_code
+            question: "Отсортируй числа и выведи результат."
+            instruction: "numbers = [5, 1, 4, 2]\nprint(sorted(numbers))"
+            answer: "[1, 2, 4, 5]"
+      - slug: json
+        title: "18. JSON и данные"
+        order: 4
+        theory: ["JSON используют для обмена данными. В редакторе не нужен import: сначала тренируем структуру словаря."]
+        exercises:
+          - type: python_code
+            question: "Выведи название первого проекта из структуры данных."
+            instruction: "data = {\"projects\": [{\"title\": \"Бот\"}]}\nprint(data[\"projects\"][0][\"title\"])"
+            answer: "Бот"
+      - slug: http-requests
+        title: "19. HTTP-запросы и API"
+        order: 5
+        theory: ["API получает и отправляет данные по HTTP. Сетевые запросы запускай только в локальной среде, не в учебной песочнице."]
+        exercises:
+          - type: python_code
+            question: "Разбери типичный JSON-ответ API без сетевого запроса."
+            instruction: "response = {\"status\": \"ok\", \"count\": 3}\nprint(response[\"count\"])"
+            answer: "3"
+      - slug: databases
+        title: "20. Базы данных и SQLite"
+        order: 6
+        theory: ["SQLite хранит данные в файле. SQL-команды и подключение к БД выполняй в локальном Python-проекте."]
+        exercises:
+          - type: python_code
+            question: "Отфильтруй завершённые задачи, как результат запроса к базе."
+            instruction: "tasks = [{\"title\": \"Код\", \"done\": True}, {\"title\": \"Тест\", \"done\": False}]\nprint([task[\"title\"] for task in tasks if task[\"done\"]])"
+            answer: "['Код']"
+      - slug: concurrency
+        title: "21. Многопоточность и asyncio"
+        order: 7
+        theory: ["Параллельность помогает не ждать медленные операции. Настоящие потоки и async-запросы запускай локально."]
+        exercises:
+          - type: python_code
+            question: "Собери список результатов независимых задач."
+            instruction: "results = [number * 2 for number in range(3)]\nprint(results)"
+            answer: "[0, 2, 4]"
+      - slug: testing
+        title: "22. Тестирование"
+        order: 8
+        theory: ["Тест проверяет ожидаемый результат. assert должен быть истинным."]
+        exercises:
+          - type: python_code
+            question: "Проверь через assert, что функция add возвращает 5."
+            instruction: "def add(a, b):\n    return a + b\n\nassert add(2, 3) == 5\nprint(\"тест пройден\")"
+            answer: "тест пройден"
+  - slug: part-4-specialization
+    title: "Часть 4 · Специализация и публикация"
+    order: 4
+    lessons:
+      - slug: regex
+        title: "23. Регулярные выражения"
+        order: 1
+        theory: ["Регулярные выражения ищут текст по шаблону. Полный модуль re используй локально; здесь тренируем логику строк."]
+        exercises:
+          - type: python_code
+            question: "Проверь, что адрес содержит символ @."
+            instruction: "email = \"user@example.com\"\nprint(\"@\" in email)"
+            answer: "True"
+      - slug: web-scraping
+        title: "24. Веб-скрапинг"
+        order: 2
+        theory: ["Скрапинг требует соблюдения robots.txt, ограничений сайта и авторских прав. Сеть в редакторе отключена."]
+        exercises:
+          - type: python_code
+            question: "Подготовь запись, которую скрапер мог бы сохранить."
+            instruction: "book = {\"title\": \"Python\", \"price\": 500}\nprint(book[\"title\"])"
+            answer: "Python"
+      - slug: flask
+        title: "25. Веб-разработка с Flask"
+        order: 3
+        theory: ["Flask создаёт веб-серверы и API. Запуск сервера требует локального окружения и не выполняется в редакторе."]
+        exercises:
+          - type: python_code
+            question: "Собери текст ответа маршрута."
+            instruction: "name = \"Ari\"\nprint(f\"Привет, {name}!\")"
+            answer: "Привет, Ari!"
+      - slug: pandas
+        title: "26. Анализ данных с Pandas"
+        order: 4
+        theory: ["Pandas работает с таблицами DataFrame. Библиотеку устанавливают локально через pip."]
+        exercises:
+          - type: python_code
+            question: "Найди среднюю оценку обычным Python, прежде чем перейти к Pandas."
+            instruction: "grades = [95, 88, 72]\nprint(sum(grades) / len(grades))"
+            answer: "85.0"
+      - slug: matplotlib
+        title: "27. Визуализация с Matplotlib"
+        order: 5
+        theory: ["Matplotlib строит графики и сохраняет изображения. Графические окна и файлы доступны только локально."]
+        exercises:
+          - type: python_code
+            question: "Подготовь данные для линейного графика."
+            instruction: "x = [1, 2, 3]\ny = [2, 4, 6]\nprint(len(x) == len(y))"
+            answer: "True"
+      - slug: telegram-bots
+        title: "28. Telegram-боты с aiogram"
+        order: 6
+        theory: ["Боту нужен токен BotFather, который нельзя помещать в код или отправлять в чат. aiogram запускается локально."]
+        exercises:
+          - type: python_code
+            question: "Сформируй безопасное приветствие для будущего бота."
+            instruction: "user = \"Ari\"\nprint(f\"Привет, {user}!\")"
+            answer: "Привет, Ari!"
+      - slug: gui
+        title: "29. GUI-приложения с Tkinter"
+        order: 7
+        theory: ["Tkinter создаёт окна, кнопки и поля. GUI нельзя открыть внутри браузерной песочницы."]
+        exercises:
+          - type: python_code
+            question: "Подготовь заголовок будущего окна."
+            instruction: "title = \"Мой калькулятор\"\nprint(title)"
+            answer: "Мой калькулятор"
+      - slug: packaging
+        title: "30. Упаковка и публикация проекта"
+        order: 8
+        theory: ["Проекту нужны README, requirements.txt, .gitignore, тесты и понятная структура. Секреты не попадают в Git."]
+        exercises:
+          - type: python_code
+            question: "Выведи минимальный список файлов проекта."
+            instruction: "files = [\"README.md\", \"requirements.txt\", \"main.py\"]\nprint(\", \".join(files))"
+            answer: "README.md, requirements.txt, main.py"

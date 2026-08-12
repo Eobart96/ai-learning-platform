@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_tutor_provider
 from app.models import Course, LessonAttempt, Mistake, UserAnswer
-from app.schemas.progress import MistakeChatRequest, MistakeChatResponse, MistakeResponse, ProgressResponse
+from app.schemas.progress import MistakeChatRequest, MistakeChatResponse, MistakeResponse, ProgressResponse, ResolveAllMistakesResponse
 from app.services.lesson_lookup import get_lesson_title
 from app.tutor import TutorProvider, build_mistake_chat_context
 
@@ -120,6 +120,21 @@ def chat_about_mistake(
     if not response:
         raise HTTPException(status_code=502, detail="Mistake chat returned an empty response")
     return MistakeChatResponse(response=response)
+
+
+@router.post("/api/v1/progress/mistakes/resolve-all", response_model=ResolveAllMistakesResponse)
+def resolve_all_mistakes(
+    course_slug: str = "slovak-a1",
+    db: Session = Depends(get_db),
+) -> ResolveAllMistakesResponse:
+    course = _course_or_404(db, course_slug)
+    mistakes = db.scalars(
+        select(Mistake).where(Mistake.course_id == course.id, Mistake.resolved.is_(False))
+    ).all()
+    for mistake in mistakes:
+        mistake.resolved = True
+    db.commit()
+    return ResolveAllMistakesResponse(resolved_count=len(mistakes))
 
 
 @router.post("/api/v1/progress/mistakes/{mistake_id}/resolve", response_model=MistakeResponse)

@@ -19,6 +19,7 @@ venv/
 node_modules/
 .next/
 .next-dev/
+*.tsbuildinfo
 dist/
 
 # Logs
@@ -34,3 +35,5 @@ logs/
 .ai/private/
 _backups/
 head_main.py
+tools/auto-improve/results/
+tools/auto-improve/.pytest_cache/

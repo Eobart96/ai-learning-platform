@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import json
 
 import yaml
 from sqlalchemy import select
@@ -98,6 +99,9 @@ def load_course(db: Session, course_path: Path) -> Course:
                 question = exercise_data.get("question", "")
                 instruction = exercise_data.get("instruction")
                 answer = exercise_data.get("answer")
+                test_cases = json.dumps(exercise_data.get("test_cases", []), ensure_ascii=False) or None
+                hint = exercise_data.get("hint")
+                explanation = exercise_data.get("explanation")
                 identity = exercise_identity(question, instruction)
                 if identity in seen_exercise_identities:
                     continue
@@ -108,7 +112,6 @@ def load_course(db: Session, course_path: Path) -> Course:
                         Exercise.exercise_type == exercise_data["type"],
                         Exercise.question == question,
                         Exercise.instruction == instruction,
-                        Exercise.correct_answer == answer,
                     )
                 )
                 if existing_exercise is None:
@@ -119,8 +122,16 @@ def load_course(db: Session, course_path: Path) -> Course:
                             question=question,
                             instruction=instruction,
                             correct_answer=answer,
+                            test_cases=test_cases,
+                            hint=hint,
+                            explanation=explanation,
                         )
                     )
+                else:
+                    existing_exercise.correct_answer = answer
+                    existing_exercise.test_cases = test_cases
+                    existing_exercise.hint = hint
+                    existing_exercise.explanation = explanation
 
     db.commit()
     db.refresh(course)

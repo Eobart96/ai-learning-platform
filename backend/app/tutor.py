@@ -105,6 +105,47 @@ def build_math_tutor_context(*, lesson_title: str, theory: str | None, progress:
     return TutorContext(prompt=prompt)
 
 
+def build_exercise_chat_context(
+    *,
+    lesson_title: str,
+    theory: str | None,
+    exercise_question: str,
+    exercise_instruction: str | None,
+    draft_answer: str,
+    history: list[tuple[str, str]],
+    user_message: str,
+) -> TutorContext:
+    """Build a bounded, contextual consultation for one Slovak exercise."""
+    history_text = "\n".join(f"{role}: {content}" for role, content in history) or "Нет предыдущих сообщений."
+    prompt = f"""Ты — AI-помощник в одном упражнении по словацкому языку A1 для русскоговорящего ученика.
+
+Текущая тема: {lesson_title}
+Теория темы:
+{theory or "Теория пока не добавлена."}
+
+Выбранное упражнение:
+- задание: {exercise_question}
+- инструкция: {exercise_instruction or "не указана"}
+- черновик ученика в поле ответа: {draft_answer or "пока пусто"}
+
+Последние сообщения этого чата:
+{history_text}
+
+Жёсткие правила:
+- отвечай только по выбранному упражнению и текущей теме, по-русски;
+- объясняй правило, значение слов или следующий маленький шаг; используй короткие словацкие примеры с переводом;
+- не давай готовый полный ответ или перевод, пока ученик не написал свою попытку в черновике;
+- если попытка есть, сначала разбери её и укажи, что исправить, но не утверждай, что ответ проверен или прогресс сохранён;
+- не используй будущую грамматику и незнакомую лексику;
+- не создавай и не изменяй упражнения, прогресс, ошибки, словарь, дневник или домашние задания;
+- если вопрос не относится к этому упражнению, коротко верни разговор к нему.
+
+Новый вопрос ученика:
+{user_message}
+"""
+    return TutorContext(prompt=prompt)
+
+
 def build_mistake_chat_context(
     *,
     category: str,

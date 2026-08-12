@@ -197,6 +197,7 @@ class RoadmapLessonResponse(BaseModel):
 
 class RoadmapModuleResponse(BaseModel):
     id: int
+    slug: str
     title: str
     order_number: int
     lessons: list[RoadmapLessonResponse]
@@ -324,6 +325,7 @@ def get_roadmap(course_slug: str = "slovak-a1", db: Session = Depends(get_db)) -
         )
         response.append(RoadmapModuleResponse(
             id=module.id,
+            slug=module.slug,
             title=module.title,
             order_number=module.order_number,
             lessons=[

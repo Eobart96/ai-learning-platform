@@ -1,7 +1,8 @@
-export type Exercise = { id: number; type: string; question: string; instruction: string | null; submitted_answer: string | null; is_completed: boolean; is_resolved: boolean; score: number | null };
+export type PythonTestCase = { stdin: string; expected_output: string };
+export type Exercise = { id: number; type: string; question: string; instruction: string | null; submitted_answer: string | null; is_completed: boolean; is_resolved: boolean; score: number | null; expected_output: string | null; test_cases: PythonTestCase[]; hint: string | null; explanation: string | null };
 export type Lesson = { id: number; slug: string; title: string; theory: string | null; exercises: Exercise[]; generated_exercises: Exercise[] };
 export type LessonOption = { id: number; title: string; status: "completed" | "current" | "upcoming"; can_repeat?: boolean };
-export type RoadmapModule = { id: number; title: string; lessons: LessonOption[]; test_available: boolean; test_passed: boolean; test_score: number | null };
+export type RoadmapModule = { id: number; slug: string; title: string; lessons: LessonOption[]; test_available: boolean; test_passed: boolean; test_score: number | null };
 export type RoadmapLevel = { slug: string; title: string; status: string; modules: RoadmapModule[] };
 export type Assessment = { is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; mistake_category: string | null };
 export type LessonAnswerResponse = { assessment: Assessment };
@@ -24,9 +25,13 @@ export function completeLesson(lessonId: number): Promise<{ completed: boolean }
 export function generateExercise(lessonId: number): Promise<Exercise> { return request<Exercise>(`/lessons/${lessonId}/generated-exercises`, { method: "POST" }); }
 export function generateMathExercise(lessonId: number): Promise<Exercise> { return request<Exercise>(`/lessons/${lessonId}/generated-exercises`, { method: "POST" }); }
 export function askMathTutor(lessonId: number, message: string): Promise<{ response: string }> { return request<{ response: string }>(`/math/lessons/${lessonId}/chat`, { method: "POST", body: JSON.stringify({ message }) }); }
+export type ExerciseChatMessage = { role: "user" | "assistant"; content: string };
+export function askExerciseTutor(lessonId: number, exerciseId: number, message: string, draftAnswer: string, history: ExerciseChatMessage[]): Promise<{ response: string }> { return request<{ response: string }>(`/lessons/${lessonId}/exercise-chat`, { method: "POST", body: JSON.stringify({ exercise_id: exerciseId, message, draft_answer: draftAnswer, history }) }); }
 export type StudyRoadmapTopic = { slug: string; title: string; description: string; module_slug: string | null };
 export type StudyRoadmap = { title: string; note: string; topics: StudyRoadmapTopic[] };
 export function getStudyRoadmap(courseSlug: string): Promise<StudyRoadmap> { return request<StudyRoadmap>(`/courses/${encodeURIComponent(courseSlug)}/study-roadmap`); }
+export type PythonRunResult = { stdout: string; stderr: string; timed_out: boolean; passed: boolean | null; explanation: string | null };
+export function runPythonCode(lessonId: number, exerciseId: number, code: string, stdin: string): Promise<PythonRunResult> { return request<PythonRunResult>(`/python/lessons/${lessonId}/run`, { method: "POST", body: JSON.stringify({ exercise_id: exerciseId, code, stdin }) }); }
 
 export type ModuleTestQuestion = { id: string; type: "choice" | "text"; question: string; options: string[] };
 export type ModuleTestMistake = { question_id: string; question: string; submitted_answer: string; expected_answer: string; explanation: string | null };
@@ -42,6 +47,7 @@ export type DialogueSession = { session_id: number; title: string | null; curren
 export function getMistakes(courseSlug = "slovak-a1"): Promise<Mistake[]> { return request<Mistake[]>(`/progress/mistakes?course_slug=${encodeURIComponent(courseSlug)}`); }
 export function startMistakePractice(mistakeId: number, courseSlug = "slovak-a1"): Promise<Mistake> { return request<Mistake>(`/progress/mistakes/${mistakeId}/practice?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
 export function resolveMistake(mistakeId: number, courseSlug = "slovak-a1"): Promise<Mistake> { return request<Mistake>(`/progress/mistakes/${mistakeId}/resolve?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
+export function resolveAllMistakes(courseSlug = "slovak-a1"): Promise<{ resolved_count: number }> { return request<{ resolved_count: number }>(`/progress/mistakes/resolve-all?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
 export function chatAboutMistake(mistakeId: number, message: string, courseSlug = "slovak-a1"): Promise<{ response: string }> { return request<{ response: string }>(`/progress/mistakes/${mistakeId}/chat?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST", body: JSON.stringify({ message }) }); }
 export function createDialogueSession(title: string, lessonId: number | null): Promise<DialogueSession> { return request<DialogueSession>("/dialogue/sessions", { method: "POST", body: JSON.stringify({ title, lesson_id: lessonId }) }); }
 export function sendDialogueMessage(sessionId: number, message: string): Promise<unknown> { return request<unknown>(`/dialogue/sessions/${sessionId}/messages`, { method: "POST", body: JSON.stringify({ message }) }); }

@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useState } from "react";
-import { type Mistake, getMistakes, resolveMistake } from "../lib/api";
+import { type Mistake, getMistakes, resolveAllMistakes, resolveMistake } from "../lib/api";
 import { MistakeChat } from "./MistakeChat";
 
 const sourceNames: Record<string, string> = { exercise: "Упражнение", homework: "Домашнее задание", diary: "Дневник", dialogue: "Живой урок", test: "Тест" };
@@ -42,8 +42,19 @@ export function MistakesScreen({ courseSlug }: MistakesScreenProps) {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось подтвердить исправление.");
-      setWorkingId(null);
-    }
+    } finally { setWorkingId(null); }
+  };
+
+  const resolveAll = async () => {
+    if (!mistakes.length || !window.confirm(`Подтвердить исправление всех ошибок (${mistakes.length})?`)) return;
+    setWorkingId(-1);
+    setError(null);
+    try {
+      await resolveAllMistakes(selectedCourseSlug);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось подтвердить все исправления.");
+    } finally { setWorkingId(null); }
   };
 
   const selectMistake = (mistakeId: number) => setSelectedMistakeId(mistakeId);
@@ -60,7 +71,7 @@ export function MistakesScreen({ courseSlug }: MistakesScreenProps) {
     <section className="native-mistakes" aria-labelledby="mistakes-title">
       <div className="native-exercises-heading">
         <div><p className="native-eyebrow">Аналитика</p><h2 id="mistakes-title">Ошибки</h2><p>{description}</p></div>
-        <button className="native-refresh" type="button" onClick={() => void load()} disabled={loading}>Обновить</button>
+        <div className="native-mistakes-actions"><button className="native-refresh" type="button" onClick={() => void resolveAll()} disabled={loading || workingId !== null || mistakes.length === 0}>{workingId === -1 ? "Исправляю…" : "Исправить всё"}</button><button className="native-refresh" type="button" onClick={() => void load()} disabled={loading || workingId !== null}>Обновить</button></div>
       </div>
       {error && <p className="native-notice error" role="alert">{error}</p>}
       {loading && <p className="native-notice">Загружаю ошибки…</p>}

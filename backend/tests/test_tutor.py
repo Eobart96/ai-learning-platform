@@ -283,6 +283,19 @@ def test_progress_and_mistakes_are_available_after_answer(client):
     assert client.get("/api/v1/lessons/1").json()["exercises"][0]["is_resolved"] is True
 
 
+def test_all_mistakes_can_be_resolved_for_one_course_at_once(client):
+    app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+    client.post("/api/v1/lessons/1/answer", json={"exercise_id": 1, "answer": "Dobrý deň"})
+    client.post("/api/v1/lessons/1/answer", json={"exercise_id": 2, "answer": "Dobrý deň"})
+
+    resolved = client.post("/api/v1/progress/mistakes/resolve-all")
+
+    assert resolved.status_code == 200
+    assert resolved.json() == {"resolved_count": 1}
+    assert client.get("/api/v1/progress/mistakes").json() == []
+    assert client.get("/api/v1/progress").json()["resolved_mistakes"] == 1
+
+
 def test_mistake_chat_uses_only_selected_error_without_starting_learning(client):
     provider = MistakeChatProvider()
     app.dependency_overrides[get_tutor_provider] = lambda: provider

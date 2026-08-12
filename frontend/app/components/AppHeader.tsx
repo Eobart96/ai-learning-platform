@@ -1,6 +1,6 @@
 export type Theme = "light" | "dark";
-export type AppView = "learning" | "mathematics" | "math_practice" | "math_tests" | "math_mistakes" | "exercises" | "tests" | "mistakes" | "vocabulary" | "diary" | "homework";
-export type LearningSubject = "slovak" | "mathematics";
+export type AppView = "learning" | "mathematics" | "math_practice" | "math_tests" | "math_mistakes" | "python" | "exercises" | "tests" | "mistakes" | "vocabulary" | "diary" | "homework";
+export type LearningSubject = "slovak" | "mathematics" | "python";
 
 type AppHeaderProps = {
   theme: Theme;
@@ -35,6 +35,7 @@ const mathNavigationItems: Array<{ view: AppView; label: string }> = [
   { view: "math_tests", label: "Тесты" },
   { view: "math_mistakes", label: "Ошибки" },
 ];
+const pythonNavigationItems: Array<{ view: AppView; label: string }> = [{ view: "python", label: "Курс и код" }];
 
 export function AppHeader({
   theme,
@@ -55,8 +56,9 @@ export function AppHeader({
   const isDark = theme === "dark";
   const codexStateClass = codexConnected ? "connected" : codexUnavailable ? "unavailable" : "";
   const isMath = subject === "mathematics";
-  const title = isMath ? "Математика к экзамену" : "Словацкий язык · A1";
-  const subtitle = isMath ? "Школьная база, практика и подготовка к экзамену" : "Персональный маршрут, практика и работа над ошибками";
+  const isPython = subject === "python";
+  const title = isMath ? "Математика к экзамену" : isPython ? "Python · четыре части" : "Словацкий язык · A1";
+  const subtitle = isMath ? "Школьная база, практика и подготовка к экзамену" : isPython ? "Теория, задачи и интерактивный запуск учебного кода" : "Персональный маршрут, практика и работа над ошибками";
 
   return (
     <header className="native-header">
@@ -66,7 +68,7 @@ export function AppHeader({
         </div>
         <div>
           <div className="native-brand-line">
-            <span className="native-eyebrow">{isMath ? "Математика" : "Slovak A1"}</span>
+            <span className="native-eyebrow">{isMath ? "Математика" : isPython ? "Python" : "Slovak A1"}</span>
             <span className="native-stack-badge">Next.js</span>
           </div>
           <h1>{title}</h1>
@@ -76,11 +78,12 @@ export function AppHeader({
 
       <div className="native-toolbar">
         <div className="native-subject-switch" aria-label="Выбор предмета">
-          <button className={!isMath ? "active" : ""} type="button" onClick={() => onSelectSubject("slovak")}>Словацкий</button>
+          <button className={subject === "slovak" ? "active" : ""} type="button" onClick={() => onSelectSubject("slovak")}>Словацкий</button>
           <button className={isMath ? "active" : ""} type="button" onClick={() => onSelectSubject("mathematics")}>Математика</button>
+          <button className={isPython ? "active" : ""} type="button" onClick={() => onSelectSubject("python")}>Python</button>
         </div>
 
-        {!isMath && <div className={`native-codex-state ${codexStateClass}`}>
+        {!isMath && !isPython && <div className={`native-codex-state ${codexStateClass}`}>
           <span className="native-status-dot" aria-hidden="true" />
           <span>{codexLabel}</span>
           {!codexConnected && (
@@ -90,8 +93,8 @@ export function AppHeader({
           )}
         </div>}
 
-        <nav className="native-navigation" aria-label={isMath ? "Разделы математики" : "Разделы словацкого языка"}>
-          {(isMath ? mathNavigationItems : slovakNavigationItems).map((item) => (
+        <nav className="native-navigation" aria-label={isMath ? "Разделы математики" : isPython ? "Разделы Python" : "Разделы словацкого языка"}>
+          {(isMath ? mathNavigationItems : isPython ? pythonNavigationItems : slovakNavigationItems).map((item) => (
             <button
               key={item.view}
               className={activeView === item.view ? "active" : ""}
@@ -103,9 +106,9 @@ export function AppHeader({
           ))}
         </nav>
 
-        {!isMath && statusError && <span className="native-sync-state error">{statusLabel}</span>}
+        {!isMath && !isPython && statusError && <span className="native-sync-state error">{statusLabel}</span>}
         <a className="native-api-link" href="/docs" target="_blank" rel="noreferrer">API</a>
-        {!isMath && <button className="native-reset-button" type="button" onClick={onResetProgress}>Начать сначала</button>}
+        {!isMath && !isPython && <button className="native-reset-button" type="button" onClick={onResetProgress}>Начать сначала</button>}
         <button
           className="native-theme-toggle"
           type="button"

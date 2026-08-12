@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -8,17 +10,27 @@ from app.dependencies import get_tutor_provider
 from app.exercise_identity import exercise_identity
 from app.math_generator import generate_numeric_exercise
 from app.models import Exercise, Lesson, Mistake, Module, UserAnswer
-from app.schemas.practice import ExerciseResponse, LessonAnswerRequest, LessonAnswerResponse, LessonResponse, MathTutorChatRequest, MathTutorChatResponse
+from app.schemas.practice import ExerciseChatRequest, ExerciseChatResponse, ExerciseResponse, LessonAnswerRequest, LessonAnswerResponse, LessonResponse, MathTutorChatRequest, MathTutorChatResponse
 from app.services.answer_checking import assess_numeric_answer
 from app.services.learning_state import record_mistake, save_vocabulary
 from app.services.lesson_answers import submit_lesson_answer
-from app.tutor import TutorProvider, build_generated_exercise_context, build_math_tutor_context, parse_generated_exercise
+from app.tutor import TutorProvider, build_exercise_chat_context, build_generated_exercise_context, build_math_tutor_context, parse_generated_exercise
 
 
 router = APIRouter(tags=["practice"])
 
 GENERATED_MATH_INSTRUCTION = "__generated_math__"
 GENERATED_SLOVAK_INSTRUCTION = "__generated_slovak__"
+
+
+def _python_test_cases(exercise: Exercise) -> list[dict[str, str]]:
+    if not exercise.test_cases:
+        return []
+    try:
+        cases = json.loads(exercise.test_cases)
+    except json.JSONDecodeError:
+        return []
+    return cases if isinstance(cases, list) else []
 
 
 @router.post("/api/v1/math/lessons/{lesson_id}/chat", response_model=MathTutorChatResponse)
@@ -58,6 +70,39 @@ def ask_math_tutor(
     if not response:
         raise HTTPException(status_code=502, detail="Math tutor returned an empty response")
     return MathTutorChatResponse(response=response)
+
+
+@router.post("/api/v1/lessons/{lesson_id}/exercise-chat", response_model=ExerciseChatResponse)
+def ask_exercise_tutor(
+    lesson_id: int,
+    request: ExerciseChatRequest,
+    db: Session = Depends(get_db),
+    provider: TutorProvider = Depends(get_tutor_provider),
+) -> ExerciseChatResponse:
+    lesson = db.scalar(select(Lesson).where(Lesson.id == lesson_id))
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    if lesson.module.course.subject != "language":
+        raise HTTPException(status_code=409, detail="Exercise chat is available only for language lessons")
+    exercise = db.scalar(select(Exercise).where(Exercise.id == request.exercise_id, Exercise.lesson_id == lesson_id))
+    if exercise is None:
+        raise HTTPException(status_code=404, detail="Exercise not found in this lesson")
+    history = [("Ученик" if item.role == "user" else "AI", item.content) for item in request.history]
+    try:
+        response = provider.respond(build_exercise_chat_context(
+            lesson_title=lesson.title,
+            theory=lesson.theory,
+            exercise_question=exercise.question,
+            exercise_instruction=exercise.instruction,
+            draft_answer=request.draft_answer,
+            history=history,
+            user_message=request.message,
+        )).strip()
+    except (FileNotFoundError, RuntimeError, TimeoutError) as error:
+        raise HTTPException(status_code=503, detail=f"Exercise tutor is unavailable: {error}") from error
+    if not response:
+        raise HTTPException(status_code=502, detail="Exercise tutor returned an empty response")
+    return ExerciseChatResponse(response=response)
 
 
 @router.get("/api/v1/lessons/{lesson_id}", response_model=LessonResponse)
@@ -114,6 +159,10 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
                 ),
                 is_resolved=exercise.id in resolved_exercise_ids,
                 score=(latest_answers[exercise.id].score if exercise.id in latest_answers else None),
+                expected_output=(exercise.correct_answer if lesson.module.course.subject == "python" else None),
+                test_cases=(_python_test_cases(exercise) if lesson.module.course.subject == "python" else []),
+                hint=(exercise.hint if lesson.module.course.subject == "python" else None),
+                explanation=(exercise.explanation if lesson.module.course.subject == "python" else None),
             )
             for exercise in exercises
         ],
@@ -130,6 +179,10 @@ def get_lesson(lesson_id: int, db: Session = Depends(get_db)) -> LessonResponse:
                 ),
                 is_resolved=exercise.id in resolved_exercise_ids,
                 score=(latest_answers[exercise.id].score if exercise.id in latest_answers else None),
+                expected_output=(exercise.correct_answer if lesson.module.course.subject == "python" else None),
+                test_cases=(_python_test_cases(exercise) if lesson.module.course.subject == "python" else []),
+                hint=(exercise.hint if lesson.module.course.subject == "python" else None),
+                explanation=(exercise.explanation if lesson.module.course.subject == "python" else None),
             )
             for exercise in generated_exercises
         ],

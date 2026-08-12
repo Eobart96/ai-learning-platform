@@ -59,6 +59,8 @@ class Exercise(Base):
     question: Mapped[str] = mapped_column(Text)
     instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
     correct_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    test_cases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     lesson: Mapped[Lesson] = relationship(back_populates="exercises")
 
