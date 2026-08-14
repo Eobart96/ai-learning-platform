@@ -64,3 +64,24 @@ class ExerciseChatRequest(BaseModel):
 
 class ExerciseChatResponse(BaseModel):
     response: str
+
+
+class ReadingGenerateRequest(BaseModel):
+    lesson_id: int | None = None
+
+
+class ReadingGenerateResponse(BaseModel):
+    title: str
+    text: str
+    instruction: str
+
+
+class ReadingCheckRequest(BaseModel):
+    text: str = Field(min_length=20, max_length=8_000)
+    retelling: str = Field(min_length=1, max_length=4_000)
+
+
+class ReadingCheckResponse(BaseModel):
+    score: int
+    feedback: str
+    corrected_retelling: str

@@ -9,6 +9,7 @@ import { MistakesScreen } from "./components/MistakesScreen";
 import { VocabularyScreen } from "./components/VocabularyScreen";
 import { DiaryScreen } from "./components/DiaryScreen";
 import { HomeworkScreen } from "./components/HomeworkScreen";
+import { ReadingScreen } from "./components/ReadingScreen";
 import { LearningScreen } from "./components/LearningScreen";
 import { MathScreen } from "./components/MathScreen";
 import { MathPracticeScreen } from "./components/MathPracticeScreen";
@@ -116,6 +117,7 @@ export default function HomePage() {
       {activeView === "vocabulary" && <VocabularyScreen />}
       {activeView === "diary" && <DiaryScreen />}
       {activeView === "homework" && <HomeworkScreen />}
+      {activeView === "reading" && <ReadingScreen />}
     </main>
   );
 }

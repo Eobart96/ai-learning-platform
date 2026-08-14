@@ -196,6 +196,18 @@ def build_generated_exercise_context(*, lesson_title: str, theory: str | None) -
     return TutorContext(prompt=prompt)
 
 
+def build_reading_generation_context(*, lesson_title: str, theory: str | None, completed_theory: str) -> TutorContext:
+    return TutorContext(prompt=f"""Ты — преподаватель словацкого языка A1. Составь короткий текст для чтения на словацком языке (80–120 слов) строго по текущему прогрессу ученика.
+Текущая тема: «{lesson_title}».
+Теория текущей темы: {theory or 'нет отдельной теории'}.
+Теория уже завершённых тем: {completed_theory or 'нет завершённых тем'}.
+ОБЯЗАТЕЛЬНЫЕ ОГРАНИЧЕНИЯ: используй только грамматику текущей и завершённых тем; не вводи правила будущих тем. Новые конкретные слова допускаются только 3–5 самых необходимых, и после текста дай их перевод в скобках. Не используй незнакомые времена, падежи или формы. Верни только JSON без markdown: {{"title":"заголовок на русском","text":"текст на словацком","instruction":"инструкция на русском: прочитай текст и перескажи, о чём он"}}.""")
+
+
+def build_reading_check_context(*, text: str, retelling: str) -> TutorContext:
+    return TutorContext(prompt=f"""Проверь пересказ ученика по тексту на словацком. Оцени, понял ли ученик содержание, а не идеальность русского языка. Верни только JSON без markdown: {{"score":0,"feedback":"краткая обратная связь по-русски","corrected_retelling":"улучшенный пересказ по-русски"}}. Текст: {text}\nПересказ ученика: {retelling}""")
+
+
 def _read_learning_file(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Learning document not found: {path}")

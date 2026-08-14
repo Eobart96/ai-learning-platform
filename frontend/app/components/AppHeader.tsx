@@ -1,5 +1,5 @@
 export type Theme = "light" | "dark";
-export type AppView = "learning" | "mathematics" | "math_practice" | "math_tests" | "math_mistakes" | "python" | "exercises" | "tests" | "mistakes" | "vocabulary" | "diary" | "homework";
+export type AppView = "learning" | "mathematics" | "math_practice" | "math_tests" | "math_mistakes" | "python" | "exercises" | "tests" | "mistakes" | "vocabulary" | "diary" | "homework" | "reading";
 export type LearningSubject = "slovak" | "mathematics" | "python";
 
 type AppHeaderProps = {
@@ -22,6 +22,7 @@ type AppHeaderProps = {
 const slovakNavigationItems: Array<{ view: AppView; label: string }> = [
   { view: "learning", label: "Обучение" },
   { view: "exercises", label: "Упражнения" },
+  { view: "reading", label: "Чтение" },
   { view: "tests", label: "Тесты" },
   { view: "mistakes", label: "Ошибки" },
   { view: "vocabulary", label: "Слова" },

@@ -9,15 +9,47 @@ from app.database import get_db
 from app.dependencies import get_tutor_provider
 from app.exercise_identity import exercise_identity
 from app.math_generator import generate_numeric_exercise
-from app.models import Exercise, Lesson, Mistake, Module, UserAnswer
-from app.schemas.practice import ExerciseChatRequest, ExerciseChatResponse, ExerciseResponse, LessonAnswerRequest, LessonAnswerResponse, LessonResponse, MathTutorChatRequest, MathTutorChatResponse
+from app.models import Course, Exercise, Lesson, LessonAttempt, Mistake, Module, UserAnswer
+from app.schemas.practice import ExerciseChatRequest, ExerciseChatResponse, ExerciseResponse, LessonAnswerRequest, LessonAnswerResponse, LessonResponse, MathTutorChatRequest, MathTutorChatResponse, ReadingCheckRequest, ReadingCheckResponse, ReadingGenerateRequest, ReadingGenerateResponse
 from app.services.answer_checking import assess_numeric_answer
 from app.services.learning_state import record_mistake, save_vocabulary
 from app.services.lesson_answers import submit_lesson_answer
-from app.tutor import TutorProvider, build_exercise_chat_context, build_generated_exercise_context, build_math_tutor_context, parse_generated_exercise
+from app.tutor import TutorProvider, build_exercise_chat_context, build_generated_exercise_context, build_math_tutor_context, build_reading_check_context, build_reading_generation_context, parse_generated_exercise
+from pydantic import BaseModel
 
 
 router = APIRouter(tags=["practice"])
+
+
+class _ReadingGenerated(BaseModel):
+    title: str
+    text: str
+    instruction: str
+
+
+@router.post("/api/v1/reading/generate", response_model=ReadingGenerateResponse)
+def generate_reading(request: ReadingGenerateRequest, db: Session = Depends(get_db), provider: TutorProvider = Depends(get_tutor_provider)) -> ReadingGenerateResponse:
+    lessons = list(db.scalars(select(Lesson).join(Module).join(Course).where(Course.slug == "slovak-a1").order_by(Module.order_number, Lesson.order_number, Lesson.id)).all())
+    completed_ids = set(db.scalars(select(LessonAttempt.lesson_id).where(LessonAttempt.completed.is_(True))).all())
+    lesson = db.scalar(select(Lesson).where(Lesson.id == request.lesson_id)) if request.lesson_id else next((item for item in lessons if item.id not in completed_ids), lessons[-1] if lessons else None)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Не найдена тема для чтения")
+    current_index = next((index for index, item in enumerate(lessons) if item.id == lesson.id), 0)
+    completed_theory = "\n\n".join(f"Тема: {item.title}\n{item.theory or ''}" for item in lessons[:current_index] if item.id in completed_ids)
+    try:
+        result = _ReadingGenerated.model_validate_json(provider.respond(build_reading_generation_context(lesson_title=lesson.title, theory=lesson.theory, completed_theory=completed_theory)))
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=f"Не удалось создать текст: {error}") from error
+    return ReadingGenerateResponse(**result.model_dump())
+
+
+@router.post("/api/v1/reading/check", response_model=ReadingCheckResponse)
+def check_reading(request: ReadingCheckRequest, provider: TutorProvider = Depends(get_tutor_provider)) -> ReadingCheckResponse:
+    try:
+        result = ReadingCheckResponse.model_validate_json(provider.respond(build_reading_check_context(text=request.text, retelling=request.retelling)))
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=f"Не удалось проверить пересказ: {error}") from error
+    return result
 
 GENERATED_MATH_INSTRUCTION = "__generated_math__"
 GENERATED_SLOVAK_INSTRUCTION = "__generated_slovak__"

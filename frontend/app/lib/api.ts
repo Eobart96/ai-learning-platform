@@ -70,6 +70,10 @@ export type HomeworkResult = Homework & { assessment: Assessment };
 export function getHomework(): Promise<Homework[]> { return request<Homework[]>("/homework"); }
 export function generateHomework(lessonId: number): Promise<Homework> { return request<Homework>("/homework/generate", { method: "POST", body: JSON.stringify({ lesson_id: lessonId }) }); }
 export function submitHomework(homeworkId: number, answer: string): Promise<HomeworkResult> { return request<HomeworkResult>(`/homework/${homeworkId}/submit`, { method: "POST", body: JSON.stringify({ answer }) }); }
+export type ReadingText = { title: string; text: string; instruction: string };
+export type ReadingCheck = { score: number; feedback: string; corrected_retelling: string };
+export function generateReading(lessonId?: number): Promise<ReadingText> { return request<ReadingText>("/reading/generate", { method: "POST", body: JSON.stringify(lessonId ? { lesson_id: lessonId } : {}) }); }
+export function checkReading(text: string, retelling: string): Promise<ReadingCheck> { return request<ReadingCheck>("/reading/check", { method: "POST", body: JSON.stringify({ text, retelling }) }); }
 
 export type DialogueMessage = { role: "user" | "assistant"; content: string };
 export type DialogueSessionListItem = DialogueSession & { message_count: number; created_at: string; updated_at: string };

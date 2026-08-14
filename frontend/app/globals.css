@@ -523,3 +523,5 @@ body.native-chat-is-expanded { overflow: hidden; }
 .native-mistakes { width: min(100%, 1580px); }.native-mistakes-grid { grid-template-columns: minmax(0, 1.62fr) minmax(390px, 1fr); gap: 24px; }.native-mistake-chat-panel { padding: 22px; }.native-mistake-chat-messages { min-height: 210px; max-height: 420px; }
 @media (max-width: 1200px) { .native-mistakes { width: min(100%, 1240px); }.native-mistakes-grid { grid-template-columns: minmax(0, 1.45fr) minmax(330px, .8fr); gap: 18px; }.native-mistake-chat-panel { padding: 18px; }.native-mistake-chat-messages { min-height: 130px; max-height: 340px; } }
 .python-hint, .python-explanation { margin: 0; color: #475569; line-height: 1.5; }.python-explanation summary { cursor: pointer; font-weight: 700; }.python-explanation p { margin: 8px 0 0; }
+:root .native-keyboard .native-keyboard-caps { min-width: 92px; font-size: 13px; }
+:root .native-keyboard .native-keyboard-caps.active { color: #fff; background: #4f46e5; }

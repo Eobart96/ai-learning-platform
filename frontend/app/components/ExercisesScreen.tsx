@@ -14,15 +14,16 @@ import {
   getLesson,
   submitLessonAnswer,
 } from "../lib/api";
+import { SlovakKeyboard } from "./SlovakKeyboard";
 
 const lessonStorageKey = "learning_lesson_id";
-const slovakKeys = ["á", "ä", "č", "ď", "é", "í", "ĺ", "ľ", "ň", "ó", "ô", "ŕ", "š", "ť", "ú", "ý", "ž", "ch", "dz", "dž"];
 
 function topicStatus(topic: LessonOption) {
   return topic.status === "completed" ? "✓ Выполнено" : topic.status === "current" ? "● Текущая тема" : "○ Не начато";
 }
 
 function ExerciseTutorChat({ lesson, exercise, draftAnswer, isOpen }: { lesson: Lesson; exercise: Exercise; draftAnswer: string; isOpen: boolean }) {
+  const questionRef = useRef<HTMLTextAreaElement>(null);
   const [messages, setMessages] = useState<ExerciseChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
@@ -48,7 +49,7 @@ function ExerciseTutorChat({ lesson, exercise, draftAnswer, isOpen }: { lesson: 
     <div className="native-exercise-chat-heading"><div><span>AI-ПОМОЩНИК</span><strong>Вопрос по упражнению</strong></div><small>Помогу с правилом и следующим шагом</small></div>
     <div className="native-exercise-chat-messages" aria-live="polite">{messages.length ? messages.map((message, index) => <article className={`native-exercise-chat-message ${message.role}`} key={`${message.role}-${index}`}><strong>{message.role === "user" ? "Ты" : "AI"}</strong><p>{message.content}</p></article>) : <p className="native-exercise-chat-empty">Спроси, почему используется форма слова, что значит выражение или с чего начать.</p>}{sending && <p className="native-exercise-chat-thinking">AI думает…</p>}</div>
     {error && <p className="native-notice error" role="alert">{error}</p>}
-    <form className="native-exercise-chat-form" onSubmit={(event) => void send(event)}><textarea rows={3} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder="Например: почему здесь môžem?" disabled={sending} /><button className="native-submit-answer" type="submit" disabled={!question.trim() || sending}>{sending ? "Отвечаю…" : "Спросить AI"}</button></form>
+    <form className="native-exercise-chat-form" onSubmit={(event) => void send(event)}><textarea ref={questionRef} rows={3} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder="Например: почему здесь môžem?" disabled={sending} /><SlovakKeyboard onInsert={(key) => { const textarea = questionRef.current; if (!textarea) return; const start = textarea.selectionStart ?? question.length; const end = textarea.selectionEnd ?? start; setQuestion(`${question.slice(0, start)}${key}${question.slice(end)}`); requestAnimationFrame(() => { textarea.focus(); textarea.setSelectionRange(start + key.length, start + key.length); }); }} disabled={sending} /><button className="native-submit-answer" type="submit" disabled={!question.trim() || sending}>{sending ? "Отвечаю…" : "Спросить AI"}</button></form>
   </aside>;
 }
 
@@ -197,7 +198,7 @@ export function ExercisesScreen() {
           <form className="native-answer-form" onSubmit={(event) => void submit(event)}>
             <div className="native-answer-heading"><span>Текущий ответ</span>{selectedExercise && <strong>{selectedExercise.question}</strong>}</div>
             <textarea ref={answerRef} rows={5} value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Напиши ответ по-словацки…" disabled={!selectedExercise || submitting} required />
-            <div className="native-keyboard" aria-label="Словацкие буквы">{slovakKeys.map((key) => <button key={key} type="button" onClick={() => insertKey(key)}>{key}</button>)}</div>
+            <SlovakKeyboard onInsert={insertKey} disabled={submitting} />
             <button className="native-submit-answer" type="submit" disabled={!selectedExercise || !answer.trim() || submitting}>{submitting ? "AI проверяет…" : "Проверить"}</button>
           </form>
           {selectedExercise && <ExerciseTutorChat key={selectedExercise.id} lesson={lesson} exercise={selectedExercise} draftAnswer={answer} isOpen={chatOpen} />}
