@@ -1,75 +1,18 @@
-# Формат учебного курса
+# Формат курса
 
-## Цель
+Каноническая структура описана TypeScript-типами в
+`frontend/app/data/courseTypes.ts`. Каталог Slovak A1 собирается в
+`a1Course.ts`, а Module 1 расширяется данными `module1Beta.ts` и
+`module1ExpandedLessons.ts`.
 
-Новые курсы должны добавляться без переписывания backend.
+Обязательные инварианты:
 
-## Пример YAML
+- уникальные и стабильные module/lesson/activity ID и slug;
+- явный порядок модулей, уроков и секций;
+- корректные `sectionIndex` для практик;
+- ссылки progress, vocabulary, topic groups и CEFR только на существующие slug;
+- изменение идентификатора требует compatibility/migration пути для
+  сохранённого состояния.
 
-```yaml
-course:
-  slug: slovak-a1
-  title: Slovak A1
-  subject: language
-  language: sk
-  teaching_language: ru
-  level: A1
-
-modules:
-  - slug: introductions
-    title: Знакомство
-    order: 1
-    lessons:
-      - slug: greetings
-        title: Приветствия
-        order: 1
-        objectives:
-          - поздороваться
-          - представиться
-        theory:
-          - "Dobrý deň — Добрый день"
-          - "Ahoj — Привет"
-        exercises:
-          - type: translation
-            question: "Переведи: Добрый день"
-            answer: "Dobrý deň"
-          - type: dialogue
-            instruction: "Поздоровайся и назови свое имя"
-```
-
-## Поддерживаемые типы упражнений
-
-- translation;
-- fill_blank;
-- multiple_choice;
-- free_text;
-- dialogue;
-- matching;
-- ordering;
-- listening;
-- speaking;
-- coding;
-- numeric_answer.
-
-## Специфика предметов
-
-Языковые курсы:
-
-- грамматика;
-- словарь;
-- диалоги;
-- произношение.
-
-Математика:
-
-- точный числовой ответ;
-- пошаговое решение;
-- формулы;
-- графики.
-
-Программирование:
-
-- код;
-- тесты;
-- анализ ошибок;
-- ограничения по времени и памяти.
+Проверка: `npm.cmd run validate:a1`. YAML больше не является источником
+runtime-курса.

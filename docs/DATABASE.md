@@ -1,60 +1,19 @@
-# Структура базы данных
+# База данных
 
-Актуализировано: 2026-07-26. Локальный MVP использует SQLite и одного
-неавторизованного пользователя, поэтому таблиц `users` и `enrollments` пока нет.
+Локальная база по умолчанию: `backend/data/app.db` (ignored).
 
-## Контент курса
+Активные таблицы:
 
-- `courses`: slug, название, предмет, язык, язык преподавания и уровень;
-- `modules`: курс, slug, название и порядок;
-- `lessons`: модуль, slug, название, порядок и теория;
-- `exercises`: урок, тип, вопрос, инструкция, правильный ответ и объяснение.
+- `module1_beta_state`;
+- `module1_beta_exercises`, `module1_beta_exercise_attempts`;
+- `module1_beta_readings`, `module1_beta_reading_attempts`;
+- `module1_beta_vocabulary`;
+- `module1_beta_homework`, `module1_beta_homework_attempts`.
 
-## Учебный прогресс
+Startup выполняет только SQLAlchemy `create_all`. Он не удаляет таблицы и не
+мигрирует старые данные. Поэтому база, созданная прежней версией проекта, может
+содержать дополнительные classic-таблицы; compact runtime их игнорирует.
 
-- `lesson_attempts`: урок, балл, завершение и время начала;
-- `user_answers`: упражнение, попытка, ответ, корректность, балл и AI feedback;
-- `module_test_attempts`: модуль, балл, проходной статус, JSON ответов и дата;
-- `module_test_answers`: вопрос теста, ожидаемый и отправленный ответы, корректность.
-
-## Ошибки
-
-`mistakes` хранит:
-
-- `course_id`, необязательные `lesson_id` и `exercise_id`;
-- источник ошибки и категорию;
-- исходный и исправленный ответы;
-- объяснение;
-- `mistake_count` и `practice_count`;
-- `resolved` — подтверждена ли отработка;
-- дату последней ошибки.
-
-Активный список API возвращает только записи с `resolved = false`. Повторная
-ошибка снова делает существующую запись активной.
-
-## Дополнительные функции
-
-- `vocabulary_items`: слово, перевод, пример, связь с уроком/ошибкой, сохранение,
-  интервалы и даты повторения;
-- `homework`: описание, статус, ответ, балл, AI feedback и даты;
-- `diary_entries`: вопрос, исходный и исправленный текст, объяснение, балл и связь
-  с ошибкой;
-- `learning_sessions`: название диалога, текущий урок, фаза, статус и даты;
-- `dialogue_messages`: сессия, роль, содержимое и дата.
-
-## Основные связи
-
-```text
-Course -> Module -> Lesson -> Exercise
-Lesson -> LessonAttempt -> UserAnswer
-Module -> ModuleTestAttempt -> ModuleTestAnswer
-Course/Lesson/Exercise -> Mistake -> VocabularyItem
-Lesson -> Homework / DiaryEntry / LearningSession -> DialogueMessage
-```
-
-## Изменение схемы
-
-Новая база создаётся через `Base.metadata.create_all`. Для уже существующей
-локальной SQLite `ensure_sqlite_schema()` добавляет совместимые столбцы через
-`ALTER TABLE`. Alembic и PostgreSQL запланированы перед многопользовательским
-production-развертыванием.
+Любое физическое удаление старых таблиц требует отдельной резервной копии,
+явного согласия владельца и тестов на старой/новой базе. Alembic пока не
+введён.

@@ -1,57 +1,42 @@
-# План тестирования
+# Тестирование
 
-Актуализировано: 2026-08-12.
+## Backend
 
-## Автоматические проверки
-
-### Backend
+Из `backend/`:
 
 ```powershell
-cd backend
 .venv\Scripts\python.exe -m pytest -q
-.venv\Scripts\python.exe -m compileall -q app
+.venv\Scripts\python.exe -m compileall -q app tests
 ```
 
-Подтверждённый локальный результат (2026-08-12): **62 passed, 1 dependency warning**. Покрываются:
+Активный набор проверяет route boundary, state round-trip, сохранность
+прогресса после startup, tutor contract и lifecycle упражнений, чтения,
+словаря и домашних заданий.
 
-- загрузка всех 31 тем A1 и практики без дублей;
-- ответы, прогресс и завершение уроков;
-- roadmap и модульные тесты;
-- диалоги, история, выбор темы, очистка и удаление;
-- активные/исправленные ошибки, связь с упражнениями и изолированный AI-чат выбранной ошибки;
-- генерация и сохранение отдельных AI-заданий по словацкой теме;
-- словарь, интервальное повторение, дневник и домашние задания;
-- валидация структурированных ответов AI.
+## Frontend
 
-### Frontend
+Из `frontend/`:
 
 ```powershell
-cd frontend
-npx.cmd tsc --noEmit --incremental false
+npm.cmd run validate:a1
+npm.cmd run test:ui
 npm.cmd run build
 ```
 
-Дополнительно выполняется `git diff --check`.
+`validate:a1` проверяет content invariants и TypeScript. UI-тесты подменяют
+backend/provider и не меняют реальную SQLite.
 
-`npx.cmd tsc --noEmit --incremental false` завершился успешно 2026-08-12.
-`npm.cmd run build` пока не считается пройденным: Next.js выводит стартовую
-строку и не завершает сборку более 90 секунд. Перед release или публикацией
-нужно диагностировать это зависание без запущенного frontend dev-сервера.
+## Repository
 
-## Ручная приёмка локального MVP
+Из корня:
 
-1. Запустить `start.cmd`.
-2. Проверить светлую и тёмную темы на `http://127.0.0.1:3000/`.
-3. Пройти переход теория → практика → сохранение прогресса.
-4. Проверить модульный тест, историю и порог 70/100.
-5. Создать ошибку, выбрать её в разделе «Ошибки», задать вопрос в изолированном AI-чате и подтвердить исправление.
-6. Убедиться, что счётчик ошибок исчезает в упражнениях и увеличивается счётчик
-   исправленных ошибок.
-7. Во время ожидания AI удалить ненужный диалог и перейти в другой раздел.
-8. Проверить словарь/Anki, дневник и домашнее задание.
-9. Развернуть длинный чат и проверить внутреннюю прокрутку.
-10. В упражнениях создать «Новое задание», убедиться в появлении во вкладке «Мои задания» и сохранении после перезагрузки.
-11. В разделе «Ошибки» выбрать «Исправить всё», подтвердить действие и убедиться,
-    что закрываются только ошибки текущего предмета.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/platform.ps1 -Mode SelfTest
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/check-repository.ps1
+git diff --check
+git status --short
+```
 
-Регистрация, JWT, PostgreSQL и production smoke tests не входят в текущий этап.
+Последний полный набор после добавления AI-настроек: backend
+`11 passed, 1 warning`, Playwright `12 passed`, validation/TypeScript —
+успешно. Next.js production build и Python compileall также прошли.

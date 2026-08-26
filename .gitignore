@@ -1,6 +1,7 @@
 # Secrets
 .env
 .env.*
+!.env.example
 
 # Database
 *.db
@@ -19,12 +20,16 @@ venv/
 node_modules/
 .next/
 .next-dev/
+.next-build/
 *.tsbuildinfo
 dist/
+frontend/playwright-report/
+frontend/test-results/
 
 # Logs
 *.log
 logs/
+.runtime/
 
 # AI temporary files
 .ai/tmp/
@@ -34,6 +39,15 @@ logs/
 # Local profiles and recovery artifacts: never add them to a public repository.
 .ai/private/
 _backups/
+_git-package/
+del/
 head_main.py
 tools/auto-improve/results/
 tools/auto-improve/.pytest_cache/
+
+# Syncthing recovery copies are not canonical project sources.
+*sync-conflict*
+*~syncthing~*
+
+# Local offline installers are distributed separately from the source repository.
+Install/

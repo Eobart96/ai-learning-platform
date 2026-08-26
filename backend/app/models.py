@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -10,202 +10,104 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Course(Base):
-    __tablename__ = "courses"
+class Module1BetaState(Base):
+    __tablename__ = "module1_beta_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    schema_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    state_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class Module1BetaExercise(Base):
+    __tablename__ = "module1_beta_exercises"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    title: Mapped[str] = mapped_column(String(255))
-    subject: Mapped[str] = mapped_column(String(100))
-    language: Mapped[str] = mapped_column(String(20))
-    teaching_language: Mapped[str] = mapped_column(String(20))
-    level: Mapped[str] = mapped_column(String(20))
-    modules: Mapped[list["Module"]] = relationship(back_populates="course", cascade="all, delete-orphan")
-
-
-class Module(Base):
-    __tablename__ = "modules"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
-    slug: Mapped[str] = mapped_column(String(100))
-    title: Mapped[str] = mapped_column(String(255))
-    order_number: Mapped[int] = mapped_column(Integer)
-    course: Mapped[Course] = relationship(back_populates="modules")
-    lessons: Mapped[list["Lesson"]] = relationship(back_populates="module", cascade="all, delete-orphan")
-    __table_args__ = (UniqueConstraint("course_id", "slug"),)
-
-
-class Lesson(Base):
-    __tablename__ = "lessons"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), index=True)
-    slug: Mapped[str] = mapped_column(String(100))
-    title: Mapped[str] = mapped_column(String(255))
-    order_number: Mapped[int] = mapped_column(Integer)
-    theory: Mapped[str | None] = mapped_column(Text, nullable=True)
-    module: Mapped[Module] = relationship(back_populates="lessons")
-    exercises: Mapped[list["Exercise"]] = relationship(back_populates="lesson", cascade="all, delete-orphan")
-    __table_args__ = (UniqueConstraint("module_id", "slug"),)
-
-
-class Exercise(Base):
-    __tablename__ = "exercises"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
-    exercise_type: Mapped[str] = mapped_column(String(50))
+    lesson_slug: Mapped[str] = mapped_column(String(100), index=True)
+    lesson_title: Mapped[str] = mapped_column(String(255))
     question: Mapped[str] = mapped_column(Text)
-    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
-    correct_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
-    test_cases: Mapped[str | None] = mapped_column(Text, nullable=True)
-    hint: Mapped[str | None] = mapped_column(Text, nullable=True)
-    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    lesson: Mapped[Lesson] = relationship(back_populates="exercises")
-
-
-class LessonAttempt(Base):
-    __tablename__ = "lesson_attempts"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
-    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class ModuleTestAttempt(Base):
-    __tablename__ = "module_test_attempts"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), index=True)
-    score: Mapped[int] = mapped_column(Integer)
-    passed: Mapped[bool] = mapped_column(Boolean, default=False)
-    answers_json: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class ModuleTestAnswer(Base):
-    __tablename__ = "module_test_answers"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    attempt_id: Mapped[int] = mapped_column(ForeignKey("module_test_attempts.id"), index=True)
-    question_id: Mapped[str] = mapped_column(String(100), index=True)
-    question: Mapped[str] = mapped_column(Text)
-    expected_answer: Mapped[str] = mapped_column(Text)
-    submitted_answer: Mapped[str] = mapped_column(Text)
-    is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class UserAnswer(Base):
-    __tablename__ = "user_answers"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"), index=True)
-    lesson_attempt_id: Mapped[int] = mapped_column(ForeignKey("lesson_attempts.id"), index=True)
-    user_answer: Mapped[str] = mapped_column(Text)
-    is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class Mistake(Base):
-    __tablename__ = "mistakes"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
-    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
-    exercise_id: Mapped[int | None] = mapped_column(ForeignKey("exercises.id"), nullable=True, index=True)
-    source: Mapped[str] = mapped_column(String(30), default="exercise", index=True)
-    category: Mapped[str] = mapped_column(String(100))
-    original_answer: Mapped[str] = mapped_column(Text)
-    corrected_answer: Mapped[str] = mapped_column(Text)
-    explanation: Mapped[str] = mapped_column(Text)
-    mistake_count: Mapped[int] = mapped_column(Integer, default=1)
-    practice_count: Mapped[int] = mapped_column(Integer, default=0)
-    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    last_mistake_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class VocabularyItem(Base):
-    __tablename__ = "vocabulary_items"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
-    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
-    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
-    word: Mapped[str] = mapped_column(String(120))
-    translation: Mapped[str] = mapped_column(String(255))
-    example: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_saved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    review_count: Mapped[int] = mapped_column(Integer, default=0)
-    interval_days: Mapped[int] = mapped_column(Integer, default=0)
-    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    next_review_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    __table_args__ = (UniqueConstraint("course_id", "word"),)
-
-
-class Homework(Base):
-    __tablename__ = "homework"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
-    lesson_id: Mapped[int] = mapped_column(ForeignKey("lessons.id"), index=True)
-    title: Mapped[str] = mapped_column(String(255))
-    description: Mapped[str] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(30), default="pending")
-    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
-    submitted_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
-    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-
-
-class DiaryEntry(Base):
-    __tablename__ = "diary_entries"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
-    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True, index=True)
-    mistake_id: Mapped[int | None] = mapped_column(ForeignKey("mistakes.id"), nullable=True, index=True)
-    prompt: Mapped[str] = mapped_column(Text)
-    original_text: Mapped[str] = mapped_column(Text)
-    corrected_text: Mapped[str] = mapped_column(Text)
-    explanation: Mapped[str] = mapped_column(Text)
-    is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
-    score: Mapped[int] = mapped_column(Integer, default=0)
-    ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    instruction: Mapped[str] = mapped_column(Text)
+    theory_snapshot: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class LearningSession(Base):
-    __tablename__ = "learning_sessions"
+class Module1BetaExerciseAttempt(Base):
+    __tablename__ = "module1_beta_exercise_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    current_lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
-    current_phase: Mapped[str] = mapped_column(String(30), default="theory")
-    status: Mapped[str] = mapped_column(String(30), default="active")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
-    messages: Mapped[list["DialogueMessage"]] = relationship(
-        back_populates="session",
-        cascade="all, delete-orphan",
-        order_by="DialogueMessage.id",
-    )
+    exercise_id: Mapped[int] = mapped_column(ForeignKey("module1_beta_exercises.id"), index=True)
+    answer: Mapped[str] = mapped_column(Text)
+    is_correct: Mapped[bool] = mapped_column(Boolean)
+    score: Mapped[int] = mapped_column(Integer)
+    corrected_answer: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str] = mapped_column(Text)
+    next_exercise: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class DialogueMessage(Base):
-    __tablename__ = "dialogue_messages"
+class Module1BetaReading(Base):
+    __tablename__ = "module1_beta_readings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("learning_sessions.id"), index=True)
-    role: Mapped[str] = mapped_column(String(20))
-    content: Mapped[str] = mapped_column(Text)
+    lesson_slug: Mapped[str] = mapped_column(String(100), index=True)
+    lesson_title: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255))
+    text: Mapped[str] = mapped_column(Text)
+    instruction: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+
+class Module1BetaReadingAttempt(Base):
+    __tablename__ = "module1_beta_reading_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reading_id: Mapped[int] = mapped_column(ForeignKey("module1_beta_readings.id"), index=True)
+    retelling: Mapped[str] = mapped_column(Text)
+    score: Mapped[int] = mapped_column(Integer)
+    feedback: Mapped[str] = mapped_column(Text)
+    corrected_retelling: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+
+class Module1BetaVocabularyItem(Base):
+    __tablename__ = "module1_beta_vocabulary"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lesson_slug: Mapped[str] = mapped_column(String(100), index=True)
+    lesson_title: Mapped[str] = mapped_column(String(255))
+    word: Mapped[str] = mapped_column(String(255))
+    translation: Mapped[str] = mapped_column(String(500))
+    example: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    interval_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_review_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
-    session: Mapped[LearningSession] = relationship(back_populates="messages")
+    __table_args__ = (UniqueConstraint("lesson_slug", "word"),)
+
+
+class Module1BetaHomework(Base):
+    __tablename__ = "module1_beta_homework"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lesson_slug: Mapped[str] = mapped_column(String(100), index=True)
+    lesson_title: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text)
+    focus_category: Mapped[str] = mapped_column(String(255))
+    theory_snapshot: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+
+class Module1BetaHomeworkAttempt(Base):
+    __tablename__ = "module1_beta_homework_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    homework_id: Mapped[int] = mapped_column(ForeignKey("module1_beta_homework.id"), index=True)
+    answer: Mapped[str] = mapped_column(Text)
+    is_correct: Mapped[bool] = mapped_column(Boolean)
+    score: Mapped[int] = mapped_column(Integer)
+    corrected_answer: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str] = mapped_column(Text)
+    next_exercise: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)

@@ -50,7 +50,7 @@ class TutorProvider(Protocol):
 
 def build_tutor_context(settings: Settings, user_message: str) -> TutorContext:
     """Build the teacher prompt from versioned learning documents."""
-    learning_dir = settings.course_path.parent / "learning"
+    learning_dir = settings.learning_path
     local_profile = settings.project_root / ".ai" / "private" / "student_profile.local.md"
     profile = _read_learning_file(local_profile if local_profile.exists() else learning_dir / "student_profile.md")
     roadmap = _read_learning_file(learning_dir / "learning_roadmap.md")
@@ -76,30 +76,6 @@ def build_tutor_context(settings: Settings, user_message: str) -> TutorContext:
 - не утверждай, что прогресс сохранен, если приложение его не передало.
 
 Сообщение ученика:
-{user_message}
-"""
-    return TutorContext(prompt=prompt)
-
-
-def build_math_tutor_context(*, lesson_title: str, theory: str | None, progress: str, user_message: str) -> TutorContext:
-    """Build an isolated maths tutor prompt without Slovak-course context."""
-    prompt = f"""Ты — AI-репетитор по школьной математике для русскоговорящего ученика.
-
-Текущая тема: {lesson_title}
-Прогресс по математике: {progress}
-Краткая теория темы:
-{theory or "Теория пока не добавлена."}
-
-Правила ответа:
-- отвечай по-русски, ясно и по шагам;
-- объясняй ход решения и правило, а не только называй результат;
-- записывай формулы обычными символами без LaTeX: дробь как 3/8, умножение как ×, деление как ÷, корень как √9;
-- каждое действие пиши с новой строки, чтобы все дроби и числа были видны;
-- если вопрос относится к текущему примеру, помоги сделать следующий шаг, не подменяя самостоятельное решение без прямой просьбы;
-- не упоминай словацкий язык, словарь, дневник, домашние задания или прогресс другого курса;
-- не создавай и не меняй записи курса — это только консультация.
-
-Вопрос ученика:
 {user_message}
 """
     return TutorContext(prompt=prompt)
@@ -249,20 +225,13 @@ class CodexCliProvider:
         executable_path = resolve_codex_executable(self.settings.codex_command)
         if executable_path is None:
             raise RuntimeError("Codex CLI не установлен или не найден.")
-        executable = str(executable_path)
-        if " " in executable:
-            executable = f'"{executable}"'
-        output_argument = str(output_path)
-        if " " in output_argument:
-            output_argument = f'"{output_argument}"'
-        command = (
-            f'{executable} exec --ephemeral '
-            f'-s read-only --skip-git-repo-check '
-            f'-o {output_argument}'
+        command = _codex_process_args(
+            executable_path,
+            ["exec", "--ephemeral", "-s", "read-only", "--skip-git-repo-check", "-o", str(output_path)],
         )
         try:
             result = subprocess.run(
-                ["cmd.exe", "/d", "/s", "/c", command],
+                command,
                 input=context.prompt.encode("utf-8"),
                 capture_output=True,
                 cwd=self.settings.project_root,
@@ -302,6 +271,7 @@ def resolve_codex_executable(configured_command: str) -> Path | None:
         return Path(path_match).resolve()
 
     candidates: list[Path] = []
+    candidates.append(Path(__file__).resolve().parents[2] / "frontend" / "node_modules" / ".bin" / "codex.cmd")
     appdata = os.environ.get("APPDATA")
     if appdata:
         candidates.append(Path(appdata) / "npm" / "codex.cmd")
@@ -319,16 +289,26 @@ def resolve_codex_executable(configured_command: str) -> Path | None:
     return max(existing, key=lambda candidate: candidate.stat().st_mtime).resolve()
 
 
+def _codex_process_args(executable: Path, arguments: list[str]) -> list[str]:
+    """Bypass cmd quoting by running the npm Codex entrypoint with Node directly."""
+    if executable.suffix.lower() in {".cmd", ".bat"}:
+        codex_js = executable.parent.parent / "@openai" / "codex" / "bin" / "codex.js"
+        node_executable = shutil.which("node")
+        if codex_js.is_file() and node_executable:
+            return [node_executable, str(codex_js), *arguments]
+    return [str(executable), *arguments]
+
+
 def get_codex_connection_status(settings: Settings) -> CodexConnectionStatus:
     """Check whether the configured Codex CLI is available and authenticated."""
     executable = resolve_codex_executable(settings.codex_command)
     if not executable:
         return CodexConnectionStatus(False, False, "Codex CLI не установлен или не найден.")
 
-    command = subprocess.list2cmdline([str(executable), "login", "status"])
+    command = _codex_process_args(executable, ["login", "status"])
     try:
         result = subprocess.run(
-            ["cmd.exe", "/d", "/s", "/c", command],
+            command,
             capture_output=True,
             cwd=settings.project_root,
             timeout=15,
@@ -352,10 +332,10 @@ def start_codex_login(settings: Settings) -> CodexConnectionStatus:
     executable = resolve_codex_executable(settings.codex_command)
     if not executable:
         return current
-    command = subprocess.list2cmdline([str(executable), "login"])
+    command = _codex_process_args(executable, ["login"])
     try:
         subprocess.Popen(
-            ["cmd.exe", "/d", "/s", "/k", command],
+            command,
             cwd=settings.project_root,
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
         )
@@ -380,12 +360,25 @@ def _decode_process_output(output: bytes | None) -> str:
 class OpenAIProvider:
     """Optional API provider using the same TutorContext as Codex mode."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         self.settings = settings
+        self.api_key = api_key or settings.openai_api_key
+        self.model = model or settings.openai_model
+        self.base_url = base_url
 
     def respond(self, context: TutorContext) -> str:
         from openai import OpenAI
 
-        client = OpenAI(api_key=self.settings.openai_api_key)
-        response = client.responses.create(model=self.settings.openai_model, input=context.prompt)
+        client_kwargs = {"api_key": self.api_key}
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
+        client = OpenAI(**client_kwargs)
+        response = client.responses.create(model=self.model, input=context.prompt)
         return response.output_text

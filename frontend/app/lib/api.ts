@@ -1,93 +1,117 @@
-export type PythonTestCase = { stdin: string; expected_output: string };
-export type Exercise = { id: number; type: string; question: string; instruction: string | null; submitted_answer: string | null; is_completed: boolean; is_resolved: boolean; score: number | null; expected_output: string | null; test_cases: PythonTestCase[]; hint: string | null; explanation: string | null };
-export type Lesson = { id: number; slug: string; title: string; theory: string | null; exercises: Exercise[]; generated_exercises: Exercise[] };
-export type LessonOption = { id: number; title: string; status: "completed" | "current" | "upcoming"; can_repeat?: boolean };
-export type RoadmapModule = { id: number; slug: string; title: string; lessons: LessonOption[]; test_available: boolean; test_passed: boolean; test_score: number | null };
-export type RoadmapLevel = { slug: string; title: string; status: string; modules: RoadmapModule[] };
-export type Assessment = { is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; mistake_category: string | null };
-export type LessonAnswerResponse = { assessment: Assessment };
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  const response = await fetch(`/api/v1${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
-    const detail = typeof body === "object" && body !== null && "detail" in body ? String(body.detail) : `Ошибка сервера (${response.status})`;
+    const detail = typeof body === "object" && body !== null && "detail" in body
+      ? String(body.detail)
+      : `Ошибка сервера (${response.status})`;
     throw new Error(detail);
   }
   return response.json() as Promise<T>;
 }
 
-export async function getExerciseTopics(): Promise<LessonOption[]> { const levels = await request<RoadmapLevel[]>("/roadmap/levels"); return levels.flatMap((level) => level.modules.flatMap((module) => module.lessons)); }
-export function getLesson(lessonId: number): Promise<Lesson> { return request<Lesson>(`/lessons/${lessonId}`); }
-export function submitLessonAnswer(lessonId: number, exerciseId: number, answer: string): Promise<LessonAnswerResponse> { return request<LessonAnswerResponse>(`/lessons/${lessonId}/answer`, { method: "POST", body: JSON.stringify({ exercise_id: exerciseId, answer }) }); }
-export function getCourseRoadmap(courseSlug: string): Promise<RoadmapModule[]> { return request<RoadmapModule[]>(`/roadmap?course_slug=${encodeURIComponent(courseSlug)}`); }
-export function completeLesson(lessonId: number): Promise<{ completed: boolean }> { return request<{ completed: boolean }>(`/lessons/${lessonId}/complete`, { method: "POST" }); }
-export function generateExercise(lessonId: number): Promise<Exercise> { return request<Exercise>(`/lessons/${lessonId}/generated-exercises`, { method: "POST" }); }
-export function generateMathExercise(lessonId: number): Promise<Exercise> { return request<Exercise>(`/lessons/${lessonId}/generated-exercises`, { method: "POST" }); }
-export function askMathTutor(lessonId: number, message: string): Promise<{ response: string }> { return request<{ response: string }>(`/math/lessons/${lessonId}/chat`, { method: "POST", body: JSON.stringify({ message }) }); }
-export type ExerciseChatMessage = { role: "user" | "assistant"; content: string };
-export function askExerciseTutor(lessonId: number, exerciseId: number, message: string, draftAnswer: string, history: ExerciseChatMessage[]): Promise<{ response: string }> { return request<{ response: string }>(`/lessons/${lessonId}/exercise-chat`, { method: "POST", body: JSON.stringify({ exercise_id: exerciseId, message, draft_answer: draftAnswer, history }) }); }
-export type StudyRoadmapTopic = { slug: string; title: string; description: string; module_slug: string | null };
-export type StudyRoadmap = { title: string; note: string; topics: StudyRoadmapTopic[] };
-export function getStudyRoadmap(courseSlug: string): Promise<StudyRoadmap> { return request<StudyRoadmap>(`/courses/${encodeURIComponent(courseSlug)}/study-roadmap`); }
-export type PythonRunResult = { stdout: string; stderr: string; timed_out: boolean; passed: boolean | null; explanation: string | null };
-export function runPythonCode(lessonId: number, exerciseId: number, code: string, stdin: string): Promise<PythonRunResult> { return request<PythonRunResult>(`/python/lessons/${lessonId}/run`, { method: "POST", body: JSON.stringify({ exercise_id: exerciseId, code, stdin }) }); }
+export type BetaTutorReply = {
+  provider: string;
+  reply: string;
+  correction: string | null;
+  explanation: string | null;
+  next_question: string | null;
+  suggestions: string[];
+  mistake_original: string | null;
+  mistake_corrected: string | null;
+};
 
-export type ModuleTestQuestion = { id: string; type: "choice" | "text"; question: string; options: string[] };
-export type ModuleTestMistake = { question_id: string; question: string; submitted_answer: string; expected_answer: string; explanation: string | null };
-export type ModuleTestAttempt = { id: number; score: number; passed: boolean; created_at: string; details_available: boolean; mistakes: ModuleTestMistake[] };
-export type ModuleTest = { module_id: number; module_title: string; available: boolean; completed_lessons: number; total_lessons: number; passed: boolean; score: number | null; passing_score: number; questions: ModuleTestQuestion[]; history: ModuleTestAttempt[] };
+export type BetaTutorRequest = {
+  lesson_slug: string;
+  lesson_title: string;
+  goals: string[];
+  theory: string;
+  known_mistakes: string[];
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  message: string;
+  current_task?: string;
+  interaction_kind?: "answer" | "clarification" | "continue";
+  is_final_turn?: boolean;
+};
 
-export function getTestModules(courseSlug = "slovak-a1"): Promise<RoadmapModule[]> { return getCourseRoadmap(courseSlug); }
-export function getModuleTest(moduleId: number): Promise<ModuleTest> { return request<ModuleTest>(`/modules/${moduleId}/final-test`); }
-export function submitModuleTest(moduleId: number, answers: Record<string, string>): Promise<ModuleTest> { return request<ModuleTest>(`/modules/${moduleId}/final-test/submit`, { method: "POST", body: JSON.stringify({ answers }) }); }
+export function askModule1Tutor(payload: BetaTutorRequest): Promise<BetaTutorReply> {
+  return request<BetaTutorReply>("/tutor/module1-chat", { method: "POST", body: JSON.stringify(payload) });
+}
 
-export type Mistake = { id: number; lesson_id: number | null; lesson_title: string | null; source: string; category: string; original_answer: string; corrected_answer: string; explanation: string; mistake_count: number; practice_count: number };
-export type DialogueSession = { session_id: number; title: string | null; current_lesson_id: number | null; current_lesson_title: string | null; current_phase: string; status: string };
-export function getMistakes(courseSlug = "slovak-a1"): Promise<Mistake[]> { return request<Mistake[]>(`/progress/mistakes?course_slug=${encodeURIComponent(courseSlug)}`); }
-export function startMistakePractice(mistakeId: number, courseSlug = "slovak-a1"): Promise<Mistake> { return request<Mistake>(`/progress/mistakes/${mistakeId}/practice?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
-export function resolveMistake(mistakeId: number, courseSlug = "slovak-a1"): Promise<Mistake> { return request<Mistake>(`/progress/mistakes/${mistakeId}/resolve?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
-export function resolveAllMistakes(courseSlug = "slovak-a1"): Promise<{ resolved_count: number }> { return request<{ resolved_count: number }>(`/progress/mistakes/resolve-all?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST" }); }
-export function chatAboutMistake(mistakeId: number, message: string, courseSlug = "slovak-a1"): Promise<{ response: string }> { return request<{ response: string }>(`/progress/mistakes/${mistakeId}/chat?course_slug=${encodeURIComponent(courseSlug)}`, { method: "POST", body: JSON.stringify({ message }) }); }
-export function createDialogueSession(title: string, lessonId: number | null): Promise<DialogueSession> { return request<DialogueSession>("/dialogue/sessions", { method: "POST", body: JSON.stringify({ title, lesson_id: lessonId }) }); }
-export function sendDialogueMessage(sessionId: number, message: string): Promise<unknown> { return request<unknown>(`/dialogue/sessions/${sessionId}/messages`, { method: "POST", body: JSON.stringify({ message }) }); }
+export type TutorProviderName = "codex" | "openai" | "polza";
+export type TutorSettings = {
+  provider: TutorProviderName;
+  codex_installed: boolean;
+  codex_authenticated: boolean;
+  codex_message: string;
+  openai_api_key_configured: boolean;
+  openai_model: string;
+  polza_api_key_configured: boolean;
+  polza_model: string;
+  polza_base_url: string;
+};
+export type TutorSettingsUpdate = {
+  provider: TutorProviderName;
+  openai_api_key?: string;
+  openai_model: string;
+  polza_api_key?: string;
+  polza_model: string;
+  clear_openai_api_key?: boolean;
+  clear_polza_api_key?: boolean;
+};
+export type CodexLoginStatus = { installed: boolean; authenticated: boolean; message: string };
 
-export type VocabularyItem = { id: number; lesson_id: number | null; word: string; translation: string; example: string | null; review_count: number; interval_days: number; next_review_at: string | null; is_due: boolean; is_saved: boolean; lesson_title: string | null };
-export function getVocabulary(): Promise<VocabularyItem[]> { return request<VocabularyItem[]>("/progress/vocabulary"); }
-export function getDueVocabulary(): Promise<VocabularyItem[]> { return request<VocabularyItem[]>("/progress/vocabulary/due"); }
-export function reviewVocabulary(itemId: number): Promise<VocabularyItem> { return request<VocabularyItem>(`/progress/vocabulary/${itemId}/review`, { method: "POST" }); }
+export function getTutorSettings(): Promise<TutorSettings> { return request<TutorSettings>("/tutor/settings"); }
+export function updateTutorSettings(payload: TutorSettingsUpdate): Promise<TutorSettings> { return request<TutorSettings>("/tutor/settings", { method: "PUT", body: JSON.stringify(payload) }); }
+export function startCodexLogin(): Promise<CodexLoginStatus> { return request<CodexLoginStatus>("/tutor/codex-login", { method: "POST" }); }
 
-export type DiaryPrompt = { prompt: string; lesson_id: number | null; lesson_title: string | null; has_entry_today: boolean };
-export type DiaryEntry = { id: number; prompt: string; original_text: string; corrected_text: string; explanation: string; is_correct: boolean; score: number; mistake_id: number | null; created_at: string; new_words: Array<{ word: string; translation: string; example: string | null }> };
-export type DiarySummary = { period_days: number; entries_count: number; average_score: number | null; mistakes_count: number; new_words_count: number };
-export function getDiaryPrompt(): Promise<DiaryPrompt> { return request<DiaryPrompt>("/diary/today"); }
-export function getDiaryEntries(): Promise<DiaryEntry[]> { return request<DiaryEntry[]>("/diary/entries"); }
-export function getDiarySummary(): Promise<DiarySummary> { return request<DiarySummary>("/diary/weekly-summary"); }
-export function submitDiaryEntry(prompt: DiaryPrompt, answer: string): Promise<DiaryEntry> { return request<DiaryEntry>("/diary/entries", { method: "POST", body: JSON.stringify({ prompt: prompt.prompt, answer, lesson_id: prompt.lesson_id }) }); }
+export type Module1BetaState = {
+  activeModule?: number;
+  selectedSlug?: string;
+  fontSize: "normal" | "large" | "extra-large";
+  progress: Record<string, string>;
+  lessonSteps: Record<string, number>;
+  checkSelections: Record<string, string>;
+  practiceAnswers: Record<string, string>;
+  practiceResults: Record<string, boolean>;
+  mistakes: Record<string, unknown>;
+  finalSelections: Record<string, string>;
+  finalCompleted: boolean;
+  finalCompletedModules?: Record<string, boolean>;
+  chatHistories: Record<string, unknown>;
+  lessonSummaries: Record<string, unknown>;
+};
 
-export type Homework = { id: number; lesson_id: number; title: string; description: string; status: string; score: number | null; focus_category: string | null; mistake_id: number | null; submitted_answer: string | null; ai_feedback: string | null };
-export type HomeworkResult = Homework & { assessment: Assessment };
-export function getHomework(): Promise<Homework[]> { return request<Homework[]>("/homework"); }
-export function generateHomework(lessonId: number): Promise<Homework> { return request<Homework>("/homework/generate", { method: "POST", body: JSON.stringify({ lesson_id: lessonId }) }); }
-export function submitHomework(homeworkId: number, answer: string): Promise<HomeworkResult> { return request<HomeworkResult>(`/homework/${homeworkId}/submit`, { method: "POST", body: JSON.stringify({ answer }) }); }
-export type ReadingText = { title: string; text: string; instruction: string };
-export type ReadingCheck = { score: number; feedback: string; corrected_retelling: string };
-export function generateReading(lessonId?: number): Promise<ReadingText> { return request<ReadingText>("/reading/generate", { method: "POST", body: JSON.stringify(lessonId ? { lesson_id: lessonId } : {}) }); }
-export function checkReading(text: string, retelling: string): Promise<ReadingCheck> { return request<ReadingCheck>("/reading/check", { method: "POST", body: JSON.stringify({ text, retelling }) }); }
+export type Module1BetaStateResponse = { exists: boolean; schema_version: number; state: Module1BetaState | null; updated_at: string | null };
+export function getModule1BetaState(): Promise<Module1BetaStateResponse> { return request<Module1BetaStateResponse>("/module1-beta/state"); }
+export function saveModule1BetaState(state: Module1BetaState): Promise<Module1BetaStateResponse> { return request<Module1BetaStateResponse>("/module1-beta/state", { method: "PUT", body: JSON.stringify(state) }); }
 
-export type DialogueMessage = { role: "user" | "assistant"; content: string };
-export type DialogueSessionListItem = DialogueSession & { message_count: number; created_at: string; updated_at: string };
-export type DialogueHistory = DialogueSession & { messages: DialogueMessage[] };
-export type DialogueMessageResult = DialogueSession & { response: string; progress_saved: boolean };
-export function getRoadmap(): Promise<RoadmapLevel[]> { return request<RoadmapLevel[]>("/roadmap/levels"); }
-export function listDialogueSessions(): Promise<DialogueSessionListItem[]> { return request<DialogueSessionListItem[]>("/dialogue/sessions"); }
-export function getDialogueSession(sessionId: number): Promise<DialogueHistory> { return request<DialogueHistory>(`/dialogue/sessions/${sessionId}`); }
-export function createLearningDialogue(): Promise<DialogueSession> { return request<DialogueSession>("/dialogue/sessions", { method: "POST" }); }
-export function selectDialogueLesson(sessionId: number, lessonId: number): Promise<DialogueSession> { return request<DialogueSession>(`/dialogue/sessions/${sessionId}/select-lesson`, { method: "POST", body: JSON.stringify({ lesson_id: lessonId }) }); }
-export function sendLearningMessage(sessionId: number, message: string): Promise<DialogueMessageResult> { return request<DialogueMessageResult>(`/dialogue/sessions/${sessionId}/messages`, { method: "POST", body: JSON.stringify({ message }) }); }
-export function clearLearningDialogue(sessionId: number): Promise<DialogueHistory> { return request<DialogueHistory>(`/dialogue/sessions/${sessionId}/clear`, { method: "POST" }); }
-export function deleteLearningDialogue(sessionId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/dialogue/sessions/${sessionId}`, { method: "DELETE" }); }
-export type CodexConnection = { installed: boolean; authenticated: boolean; message: string };
-export function getCodexStatus(): Promise<CodexConnection> { return request<CodexConnection>("/codex/status"); }
-export function startCodexLogin(): Promise<CodexConnection> { return request<CodexConnection>("/codex/login", { method: "POST" }); }
-export function resetProgress(): Promise<{ reset: boolean }> { return request<{ reset: boolean }>("/progress/reset", { method: "POST", body: JSON.stringify({ confirm: true }) }); }
+export type Module1BetaExerciseAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
+export type Module1BetaExercise = { id: number; lesson_slug: string; lesson_title: string; question: string; instruction: string; created_at: string; latest_attempt: Module1BetaExerciseAttempt | null };
+export function getModule1BetaExercises(lessonSlug?: string): Promise<Module1BetaExercise[]> { const query = lessonSlug ? `?lesson_slug=${encodeURIComponent(lessonSlug)}` : ""; return request<Module1BetaExercise[]>(`/module1-beta/exercises${query}`); }
+export function generateModule1BetaExercise(payload: { lesson_slug: string; lesson_title: string; theory: string }): Promise<Module1BetaExercise> { return request<Module1BetaExercise>("/module1-beta/exercises", { method: "POST", body: JSON.stringify(payload) }); }
+export function answerModule1BetaExercise(exerciseId: number, answer: string): Promise<Module1BetaExerciseAttempt> { return request<Module1BetaExerciseAttempt>(`/module1-beta/exercises/${exerciseId}/answer`, { method: "POST", body: JSON.stringify({ answer }) }); }
+export function deleteModule1BetaExercise(exerciseId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/exercises/${exerciseId}`, { method: "DELETE" }); }
+
+export type Module1BetaReadingAttempt = { id: number; retelling: string; score: number; feedback: string; corrected_retelling: string; created_at: string };
+export type Module1BetaReading = { id: number; lesson_slug: string; lesson_title: string; title: string; text: string; instruction: string; created_at: string; latest_attempt: Module1BetaReadingAttempt | null };
+export function getModule1BetaReadings(): Promise<Module1BetaReading[]> { return request<Module1BetaReading[]>("/module1-beta/readings"); }
+export function generateModule1BetaReading(payload: { lesson_slug: string; lesson_title: string; theory: string; completed_theory: string }): Promise<Module1BetaReading> { return request<Module1BetaReading>("/module1-beta/readings", { method: "POST", body: JSON.stringify(payload) }); }
+export function checkModule1BetaReading(readingId: number, retelling: string): Promise<Module1BetaReadingAttempt> { return request<Module1BetaReadingAttempt>(`/module1-beta/readings/${readingId}/check`, { method: "POST", body: JSON.stringify({ retelling }) }); }
+export function deleteModule1BetaReading(readingId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/readings/${readingId}`, { method: "DELETE" }); }
+
+export type Module1BetaVocabularyItem = { id: number; lesson_slug: string; lesson_title: string; word: string; translation: string; example: string | null; review_count: number; interval_days: number; next_review_at: string | null; is_due: boolean };
+export type Module1BetaVocabularySeed = Omit<Module1BetaVocabularyItem, "id" | "review_count" | "interval_days" | "next_review_at" | "is_due">;
+export function syncModule1BetaVocabulary(items: Module1BetaVocabularySeed[]): Promise<Module1BetaVocabularyItem[]> { return request<Module1BetaVocabularyItem[]>("/module1-beta/vocabulary/sync", { method: "PUT", body: JSON.stringify({ items }) }); }
+export function getModule1BetaVocabulary(): Promise<Module1BetaVocabularyItem[]> { return request<Module1BetaVocabularyItem[]>("/module1-beta/vocabulary"); }
+export function reviewModule1BetaVocabulary(itemId: number): Promise<Module1BetaVocabularyItem> { return request<Module1BetaVocabularyItem>(`/module1-beta/vocabulary/${itemId}/review`, { method: "POST" }); }
+
+export type Module1BetaHomeworkAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
+export type Module1BetaHomework = { id: number; lesson_slug: string; lesson_title: string; title: string; description: string; focus_category: string; created_at: string; latest_attempt: Module1BetaHomeworkAttempt | null };
+export function getModule1BetaHomework(): Promise<Module1BetaHomework[]> { return request<Module1BetaHomework[]>("/module1-beta/homework"); }
+export function generateModule1BetaHomework(payload: { lesson_slug: string; lesson_title: string; theory: string; known_mistakes: string[] }): Promise<Module1BetaHomework> { return request<Module1BetaHomework>("/module1-beta/homework", { method: "POST", body: JSON.stringify(payload) }); }
+export function submitModule1BetaHomework(homeworkId: number, answer: string): Promise<Module1BetaHomeworkAttempt> { return request<Module1BetaHomeworkAttempt>(`/module1-beta/homework/${homeworkId}/submit`, { method: "POST", body: JSON.stringify({ answer }) }); }
+export function deleteModule1BetaHomework(homeworkId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/homework/${homeworkId}`, { method: "DELETE" }); }

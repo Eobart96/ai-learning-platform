@@ -1,53 +1,20 @@
 # Contributing
 
-AI Learning Platform — экспериментальный **vibe-coded** проект. AI-инструменты
-ускоряют разработку, но не заменяют review, тесты и ответственность автора
-изменения.
-
-## Ветки
-
-```text
-main
-develop
-feature/<name>
-fix/<name>
-docs/<name>
-```
-
-## Коммиты
-
-Примеры:
-
-```text
-feat: add user registration
-fix: validate AI response
-docs: update database schema
-test: add lesson API tests
-refactor: split progress service
-```
-
-## Pull Request
-
-PR должен содержать:
-
-- описание изменения;
-- причину изменения;
-- способ проверки;
-- скриншоты для UI;
-- связанные issue.
+Проект экспериментальный: AI может помогать с реализацией, но изменение должно
+быть прочитано человеком и подтверждено тестами.
 
 ## Правила
 
-- не коммитить секреты;
-- не добавлять SQLite-базу, `.env`, backup-артефакты или личные учебные данные;
-- писать понятные имена;
-- добавлять тесты;
-- обновлять документацию;
-- не смешивать несколько больших задач в одном PR.
+- одна связная задача на branch/PR;
+- не добавлять секреты, SQLite, личный профиль, зависимости и generated output;
+- сохранять стабильные course slug/activity ID и API contracts;
+- для cross-layer изменения синхронно обновлять Pydantic, TypeScript client,
+  UI states, тесты и `docs/API.md`;
+- не добавлять auth, multi-user или deployment как побочный scope.
 
-## Перед pull request
+## Перед PR
 
-1. Выполни релевантные backend и frontend проверки из `docs/TESTING.md`.
-2. Проверь `git diff --check`.
-3. Для UI-изменений приложи скриншот или кратко опиши ручную проверку.
-4. Не используй `git add .` в рабочем дереве с несвязанными изменениями.
+1. Выполнить релевантный набор из `docs/TESTING.md`.
+2. Запустить repository audit и `git diff --check`.
+3. Проверить итоговый diff и отсутствие локальных данных.
+4. Для UI приложить скриншот либо описать ручной сценарий.

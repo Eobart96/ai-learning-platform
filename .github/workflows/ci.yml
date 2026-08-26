@@ -22,6 +22,9 @@ jobs:
       - name: Run tests
         working-directory: backend
         run: python -m pytest tests -q --disable-warnings
+      - name: Compile Python
+        working-directory: backend
+        run: python -m compileall -q app tests
 
   frontend:
     name: Frontend checks
@@ -36,9 +39,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      - name: Check TypeScript
+      - name: Validate content and TypeScript
         working-directory: frontend
-        run: npx tsc --noEmit --incremental false
+        run: npm run validate:a1
       - name: Build frontend
         working-directory: frontend
         run: npm run build

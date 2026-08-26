@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 from app.database import Base, get_db
-import app.main as main_module
-from app.main import app, get_tutor_provider
-from app.tutor import TutorContext
+from app.dependencies import get_tutor_provider
+import app.services.startup as startup_module
+import app.routers.tutor as tutor_router_module
+from app.main import app
+from app.tutor import CodexConnectionStatus, TutorContext
 
 
 class TestTutorProvider:
@@ -50,15 +52,35 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_tutor_provider] = lambda: TestTutorProvider()
     settings = get_settings()
     original_database_url = settings.database_url
-    original_course_path = settings.course_path
-    original_engine = main_module.engine
+    original_learning_path = settings.learning_path
+    original_project_root = settings.project_root
+    original_tutor_values = (
+        settings.tutor_provider,
+        settings.openai_api_key,
+        settings.openai_model,
+        settings.polza_api_key,
+        settings.polza_model,
+    )
+    original_engine = startup_module.engine
+    original_codex_status = tutor_router_module.get_codex_connection_status
+    tutor_router_module.get_codex_connection_status = lambda _: CodexConnectionStatus(True, True, "Codex подключён в тесте")
     settings.database_url = database_url
-    settings.course_path = Path(__file__).parents[2] / "course-content" / "slovak-a1" / "course.yaml"
-    main_module.engine = test_engine
+    settings.learning_path = Path(__file__).parents[2] / "course-content" / "slovak-a1" / "learning"
+    settings.project_root = tmp_path
+    startup_module.engine = test_engine
     with TestClient(app) as test_client:
         yield test_client
     settings.database_url = original_database_url
-    settings.course_path = original_course_path
-    main_module.engine = original_engine
+    settings.learning_path = original_learning_path
+    settings.project_root = original_project_root
+    (
+        settings.tutor_provider,
+        settings.openai_api_key,
+        settings.openai_model,
+        settings.polza_api_key,
+        settings.polza_model,
+    ) = original_tutor_values
+    startup_module.engine = original_engine
+    tutor_router_module.get_codex_connection_status = original_codex_status
     app.dependency_overrides.clear()
     test_engine.dispose()

@@ -11,6 +11,15 @@ def get_tutor_provider() -> TutorProvider:
         if not settings.openai_api_key:
             raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
         return OpenAIProvider(settings)
+    if settings.tutor_provider == "polza":
+        if not settings.polza_api_key:
+            raise HTTPException(status_code=503, detail="POLZA_API_KEY is not configured")
+        return OpenAIProvider(
+            settings,
+            api_key=settings.polza_api_key,
+            model=settings.polza_model,
+            base_url=settings.polza_base_url,
+        )
     if settings.tutor_provider == "codex":
         return CodexCliProvider(settings)
     raise HTTPException(status_code=500, detail="Unsupported TUTOR_PROVIDER")

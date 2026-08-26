@@ -5,15 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "validate:a1": "node scripts/validate-a1-content.mjs && tsc --noEmit --incremental false",
+    "test:ui": "node scripts/run-ui-tests.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",
-    "pyodide": "0.29.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@openai/codex": "^0.149.0",
+    "@playwright/test": "^1.51.1",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
