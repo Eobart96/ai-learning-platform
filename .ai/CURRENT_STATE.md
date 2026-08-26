@@ -10,12 +10,17 @@
   возвращаются браузеру.
 - SQLite-модели ограничены активными `module1_beta_*` таблицами. Старые таблицы
   в пользовательской базе не удалены.
-- Classic-код, исторические документы и локальные/generated материалы
-  восстановимо вынесены в `del/`.
+- Classic-код, исторические документы и локальные/generated материалы вынесены
+  за пределы active tree; пользовательская резервная копия не является source
+  of truth.
 - `_git-package/AI-Learning-Platform-2026-08-26` остаётся локальной резервной
   выборкой; каноническим Git-кандидатом является прошедшее аудит рабочее дерево.
-- Владелец разрешил commit и push compact runtime в существующий `origin/main`.
+- Compact runtime опубликован в `origin/main` коммитом `3214334`; локальный и
+  удалённый hash совпали, GitHub CI завершился успешно.
 - После добавления AI-настроек подтверждены backend `11 passed, 1 warning`,
   Playwright `12 passed`, TypeScript/content validation, Next.js build и
-  compileall; repository audit выполняется перед передачей результата.
-- Credential из прежнего локального env-шаблона должен быть отозван владельцем.
+  compileall, launcher self-test, pip check и repository audit.
+- `npm audit --omit=dev` сообщает 6 high advisories в зависимостях
+  Next.js/Playwright; автоматическое breaking-обновление не применялось.
+- Git-история подтверждает прежнюю строку формата API-ключа в `.env.example`.
+  Значение не читалось; отзыв credential владельцем не подтверждён.

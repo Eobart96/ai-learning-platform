@@ -14,6 +14,9 @@
 - Документация пересобрана вокруг фактического compact runtime.
 - Добавлен экран настройки AI-provider: Codex CLI, OpenAI API или Polza API;
   ключи сохраняются только локально и не возвращаются frontend.
+- Compact runtime опубликован в GitHub коммитом `3214334`; CI прошёл.
+- Post-publication checkpoint зафиксировал исторический credential-риск и 6
+  high dependency advisories без автоматического breaking-обновления.
 - `.env.example` очищен до placeholders. Прежний credential необходимо
   отозвать у provider.
 
