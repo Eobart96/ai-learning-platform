@@ -1,6 +1,76 @@
 # Project report
 
-## Current summary — 2026-08-26
+## Current summary — 2026-08-27
+
+Modules 1–2 теперь являются подробными частями общего Slovak A1 runtime.
+Module 2 содержит семь уроков, три тематические группы, обязательную пошаговую
+практику, проверки знаний и совместимое сохранение состояния. Следующий
+продуктовый этап — Module 3; открытые security-задачи по прежнему credential и
+frontend dependency advisories не изменились.
+
+## Checkpoint — расширение Module 2, 2026-08-27
+
+### Что изменилось и почему
+
+- создан отдельный `frontend/app/data/module2ExpandedLessons.ts` для семи
+  утверждённых уроков Module 2;
+- добавлены подробная теория, пять секций и пять пошаговых практик на урок,
+  проверки знаний, итоговые вопросы и стабильные `m2-*` activity ID;
+- Module 2 разделён на группы рода, числа/словарной формы и
+  называния/наличия, подключён к общему data-driven экрану без копирования UI,
+  API или SQLite-таблиц;
+- content validation и Playwright расширены проверками структуры, словаря,
+  открытия Module 2 и восстановления сохранённого прогресса;
+- README, roadmap, course format и agent current state обновлены перед
+  переходом к Module 3.
+
+Владелец запросил довести Module 2 до глубины Module 1, исключив новую
+разговорную механику, затем проверить результат и зафиксировать этап коммитом.
+
+### Проверка
+
+| Команда или проверка | Результат |
+|---|---|
+| `backend/.venv/Scripts/python.exe -m pytest -q` | 11 passed, 1 deprecation warning |
+| `python -m compileall -q app tests` | успешно |
+| `npm.cmd run validate:a1` | 8 модулей, 83 урока, 7 expanded Module 2 lessons, TypeScript успешно |
+| `npm.cmd run test:ui` | 15 passed |
+| `npm.cmd run build` | production build успешно |
+| `platform.ps1 -Mode SelfTest` | launcher decision tests успешно |
+| `check-repository.ps1` | успешно, запрещённых путей и credential-like значений не найдено |
+| `git diff --check` | успешно |
+| `npm.cmd audit --omit=dev --audit-level=high` | 6 high advisories; полный fix требует breaking Next.js 16 |
+| `backend/.venv/Scripts/python.exe -m pip check` | недоступно: локальный venv ссылается на отсутствующий старый путь Python |
+
+Ручной smoke каждого задания и реальный AI-provider в этом checkpoint не
+проверялись. Владелец просмотрел результат Module 2 и подтвердил, что в целом
+он его устраивает.
+
+### Аудит и roadmap delta
+
+- **high — открыт, без изменений:** прежняя строка формата credential остаётся
+  в Git-истории; подтверждения отзыва нет.
+- **high — открыт, без изменений:** последний dependency audit сообщал 6 high
+  advisories; breaking-обновление автоматически не выполнялось.
+- **low — открыт:** backend сохраняет известную Starlette deprecation warning.
+- **low — открыт:** локальный backend venv требует пересоздания или исправления
+  базового Python для повторного `pip check`; зависимости не переустанавливались.
+- **info — подтверждено:** новый контент использует существующие slug, общий
+  state/API и проходит repository audit.
+- Module 2 завершён; следующим продуктовым milestone назначен Module 3.
+
+### Следующий checkpoint
+
+Начать с `frontend/app/data/a1CourseRoadmap.ts` и компактных записей Module 3 в
+`frontend/app/data/a1CourseContent.json`:
+
+1. согласовать границы и тематические группы шести уроков Module 3;
+2. создать `module3ExpandedLessons.ts` со стабильными `m3-*` ID;
+3. подключить его к `a1Course.ts` и повторить validation/UI/build matrix.
+
+---
+
+## Предыдущий current summary — 2026-08-26
 
 Compact Slovak A1 runtime опубликован в GitHub `origin/main` коммитом
 `3214334`; GitHub CI прошёл, локальное рабочее дерево после push было чистым.

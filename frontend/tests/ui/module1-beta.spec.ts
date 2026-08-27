@@ -8,6 +8,7 @@ import { buildModuleFinalQuestions, buildReinforcementPractices } from "../../ap
 import { contentVocabulary } from "../../app/components/Module1BetaVocabulary";
 
 const module1 = getA1Module(1);
+const module2 = getA1Module(2);
 
 test("course structure has stable unique identifiers and data-driven ordering", () => {
   const lessonSlugs = allA1Lessons.map((lesson) => lesson.slug);
@@ -59,6 +60,34 @@ test("Module 1 final test does not repeat normative answers", () => {
   const answers = questions.map((question) => question.answer.normalize("NFC").toLocaleLowerCase("sk").replace(/\p{P}+/gu, " ").replace(/\s+/g, " ").trim());
   expect(new Set(answers).size).toBe(answers.length);
   expect(questions.filter((question) => question.lessonSlug === "soft-hard-consonants").map((question) => question.answer)).not.toContain("žena");
+});
+
+test("Module 2 matches the expanded content contract", () => {
+  expect(module2.lessons.map((lesson) => lesson.slug)).toEqual([
+    "masculine-nouns",
+    "feminine-nouns",
+    "neuter-nouns",
+    "noun-number",
+    "noun-endings",
+    "who-what-is-it",
+    "presence-absence",
+  ]);
+  expect(orderedModuleLessons(module2).map((lesson) => lesson.slug)).toEqual(
+    module2.topicGroups?.flatMap((group) => group.lessonSlugs),
+  );
+  for (const lesson of module2.lessons) {
+    expect(lesson.sections.length, lesson.slug).toBeGreaterThanOrEqual(5);
+    expect(lesson.stepPractices.length, lesson.slug).toBeGreaterThanOrEqual(5);
+    expect(lesson.theory.rules.length, lesson.slug).toBeGreaterThanOrEqual(3);
+    expect(new Set(lesson.stepPractices.map((practice) => practice.sectionIndex)).size, lesson.slug).toBe(lesson.sections.length);
+    expect(lesson.stepPractices.every((practice) => practice.id.startsWith(`m2-${lesson.slug}-`)), lesson.slug).toBe(true);
+  }
+  const finalQuestions = buildModuleFinalQuestions(module2.lessons);
+  expect(new Set(finalQuestions.map((question) => question.lessonSlug))).toEqual(new Set(module2.lessons.map((lesson) => lesson.slug)));
+  expect(new Set(finalQuestions.map((question) => question.answer)).size).toBe(finalQuestions.length);
+  const vocabulary = contentVocabulary(module2.lessons.map((lesson) => lesson.slug));
+  expect(vocabulary.length).toBeGreaterThanOrEqual(module2.lessons.length * 4);
+  expect(new Set(vocabulary.map((item) => item.lesson_slug))).toEqual(new Set(module2.lessons.map((lesson) => lesson.slug)));
 });
 
 function createState(overrides: Partial<Module1BetaState> = {}): Module1BetaState {
@@ -177,6 +206,47 @@ test("alphabet section groups the first six lessons as cards", async ({ page }) 
     await expect(page.locator(".module-beta-topic-number")).toHaveText(numbers);
     await page.getByRole("button", { name: "← К разделам" }).click();
   }
+});
+
+test("Module 2 opens as three topic groups and keeps the expanded lessons", async ({ page }) => {
+  await mockStateApi(page, createState());
+  await openCourse(page);
+
+  await page.getByLabel("Выберите учебный модуль").selectOption("2");
+  await expect(page.getByRole("heading", { name: module2.title })).toBeVisible();
+  await expect(page.locator(".module-beta-group-card")).toHaveCount(3);
+  await expect(page.getByText("Род существительных", { exact: true })).toBeVisible();
+  await expect(page.getByText("Число и словарная форма", { exact: true })).toBeVisible();
+  await expect(page.getByText("Называние и наличие", { exact: true })).toBeVisible();
+
+  await page.locator(".module-beta-group-card").filter({ hasText: "Род существительных" }).click();
+  await expect(page.locator(".module-beta-topic-grid .module-beta-topic-card")).toHaveCount(3);
+  await page.getByRole("button", { name: new RegExp(module2.lessons[0].title) }).first().click();
+  await expect(page.locator(".module-beta-material-heading h3")).toHaveText(module2.lessons[0].title);
+  await expect(page.locator(".module-beta-practice")).toBeVisible();
+});
+
+test("saved Module 2 lesson and progress are restored from the shared state", async ({ page }) => {
+  const lesson = module2.lessons[3];
+  await mockStateApi(page, createState({
+    activeModule: 2,
+    selectedSlug: lesson.slug,
+    progress: { [lesson.slug]: "in_progress" },
+    lessonSteps: { [lesson.slug]: 1 },
+  }));
+
+  const restored = page.waitForResponse((response) =>
+    response.url().includes("/api/v1/module1-beta/state") && response.request().method() === "GET",
+  );
+  await page.goto("/");
+  await restored;
+
+  await expect(page.getByRole("heading", { name: module2.title })).toBeVisible();
+  await expect(page.getByLabel("Выберите учебный модуль")).toHaveValue("2");
+  const group = module2.topicGroups?.find((item) => item.lessonSlugs.includes(lesson.slug));
+  if (!group) throw new Error(`Lesson ${lesson.slug} is not assigned to a Module 2 topic group`);
+  await page.locator(".module-beta-group-card").filter({ hasText: group.title }).click();
+  await expect(page.getByRole("button", { name: new RegExp(lesson.title) }).first()).toContainText("В процессе");
 });
 
 test("lesson reinforcement is deterministic and does not call AI", async ({ page }) => {

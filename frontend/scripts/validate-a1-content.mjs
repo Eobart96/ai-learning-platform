@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const roadmapSource = readFileSync(resolve(root, "app/data/a1CourseRoadmap.ts"), "utf8");
 const expandedModule1Source = readFileSync(resolve(root, "app/data/module1ExpandedLessons.ts"), "utf8");
+const expandedModule2Source = readFileSync(resolve(root, "app/data/module2ExpandedLessons.ts"), "utf8");
 const content = JSON.parse(readFileSync(resolve(root, "app/data/a1CourseContent.json"), "utf8"));
 const lessonPattern = /item\("([^"]+)", "([^"]+)", "([^"]+)", "([^"]+)"\)/g;
 const plannedLessons = [...roadmapSource.matchAll(lessonPattern)].map((match) => ({ slug: match[1], title: match[2] }));
@@ -31,6 +32,7 @@ for (const slug of contentSlugs) if (!importedSlugs.has(slug)) fail(`unexpected 
 
 const blockedText = /(?:TODO|placeholder|lorem ipsum|заполнить позже|запланировано)/i;
 if (blockedText.test(expandedModule1Source)) fail("placeholder in expanded Module 1 source");
+if (blockedText.test(expandedModule2Source)) fail("placeholder in expanded Module 2 source");
 for (const lesson of importedLessons) {
   const value = content[lesson.slug];
   if (!value) fail(`missing content for ${lesson.slug}`);
@@ -45,4 +47,4 @@ for (const lesson of importedLessons) {
   }
 }
 
-console.log(`Slovak A1 content valid: 8 modules, 83 lessons, 8 expanded Module 1 lessons, ${contentSlugs.length} imported content records.`);
+console.log(`Slovak A1 content valid: 8 modules, 83 lessons, 8 expanded Module 1 lessons, 7 expanded Module 2 lessons, ${contentSlugs.length} imported content records.`);

@@ -6,6 +6,7 @@ import type { BetaLesson, BetaModule, CourseTopicGroup } from "./courseTypes";
 import { validateCourseModules } from "./courseValidation";
 import { expandedModule1Lessons } from "./module1ExpandedLessons";
 import { module1Beta } from "./module1Beta";
+import { expandedModule2Lessons } from "./module2ExpandedLessons";
 
 type CompactExample = { slovak: string; russian: string };
 type CompactLessonContent = {
@@ -124,11 +125,40 @@ if (expandedModule1Lessons.some((lesson, index) => lesson.slug !== plannedModule
   throw new Error("Расширенные уроки Module 1 не совпадают с утверждённым roadmap");
 }
 
+const plannedModule2 = plannedA1Modules.find((module) => module.order === 2);
+if (!plannedModule2 || expandedModule2Lessons.length !== plannedModule2.lessons.length || expandedModule2Lessons.some((lesson, index) => lesson.slug !== plannedModule2.lessons[index]?.slug)) {
+  throw new Error("Расширенные уроки Module 2 не совпадают с утверждённым roadmap");
+}
+
 const foundationsTopicGroups: CourseTopicGroup[] = [
   { id: "alphabet", title: "Алфавит", slovakTitle: "Abeceda a výslovnosť", description: "Буквы, диакритика, гласные, дифтонги, согласные, ударение и ритм слова.", lessonSlugs: ["slovak-alphabet-pronunciation", "long-short-vowels", "diphthongs", "soft-hard-consonants", "word-stress", "rhythmic-law"] },
   { id: "communication", title: "Знакомство и общение", slovakTitle: "Zoznámenie a komunikácia", description: "Приветствие, представление себя и стратегии уточнения в разговоре.", lessonSlugs: ["greetings", "introductions", "communication-repair"] },
   { id: "numbers-calendar", title: "Числа и календарь", slovakTitle: "Čísla a kalendár", description: "Числа, возраст, время, дни недели, месяцы и даты.", lessonSlugs: ["numbers", "days-and-months"] },
   { id: "grammar", title: "Базовая грамматика", slovakTitle: "Základná gramatika", description: "Личные местоимения, глагол byť и построение простых вопросов.", lessonSlugs: ["personal-pronouns", "verb-byt", "question-words"] },
+];
+
+const nounsTopicGroups: CourseTopicGroup[] = [
+  {
+    id: "noun-gender",
+    title: "Род существительных",
+    slovakTitle: "Rod podstatných mien",
+    description: "Мужской, женский и средний род: частотные окончания, распознавание и базовое согласование.",
+    lessonSlugs: ["masculine-nouns", "feminine-nouns", "neuter-nouns"],
+  },
+  {
+    id: "noun-forms",
+    title: "Число и словарная форма",
+    slovakTitle: "Číslo a základný tvar",
+    description: "Единственное и множественное число, основные окончания и безопасные модели уровня A1.",
+    lessonSlugs: ["noun-number", "noun-endings"],
+  },
+  {
+    id: "naming-and-presence",
+    title: "Называние и наличие",
+    slovakTitle: "Pomenovanie a prítomnosť",
+    description: "Вопросы о людях и предметах, а также конструкции je, sú, nie je и nie sú.",
+    lessonSlugs: ["who-what-is-it", "presence-absence"],
+  },
 ];
 
 const module1Lessons = [
@@ -151,7 +181,10 @@ export const a1CourseModules: BetaModule[] = [
     title: module.title,
     level: "Slovak A1",
     description: module.description,
-    lessons: module.lessons.map((planned, index) => createLesson(module.order, index + 1, planned, courseContent[planned.slug])),
+    lessons: (module.order === 2 ? expandedModule2Lessons : module.lessons.map((planned, index) => createLesson(module.order, index + 1, planned, courseContent[planned.slug])))
+      .map((lesson, index) => ({ ...lesson, order: index + 1 })),
+    topicGroups: module.order === 2 ? nounsTopicGroups : undefined,
+    contentRequirements: module.order === 2 ? { minSections: 5, minStepPractices: 5, minTheoryRules: 3 } : undefined,
   })),
 ];
 
