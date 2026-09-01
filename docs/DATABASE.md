@@ -2,7 +2,8 @@
 
 Локальная база по умолчанию: `backend/data/app.db` (ignored).
 
-Активные таблицы:
+Модели приложения называются `Course*`. Для совместимости с уже сохранённым
+прогрессом они пока используют прежние физические имена таблиц:
 
 - `module1_beta_state`;
 - `module1_beta_exercises`, `module1_beta_exercise_attempts`;

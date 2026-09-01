@@ -1,6 +1,6 @@
 # Project context
 
-AI Learning Platform — локальный русскоязычный интерфейс для изучения
+SlovoKrok — локальный русскоязычный интерфейс для изучения
 словацкого A1. Основной продукт — data-driven Next.js курс; FastAPI сохраняет
 Module 1 state и AI-generated practice в SQLite и вызывает выбранного tutor
 provider.

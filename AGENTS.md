@@ -1,45 +1,42 @@
 # Project agent instructions
 
-## Scope
+## Start
 
-Это локальный однопользовательский Slovak A1 MVP: Next.js/React/TypeScript,
-FastAPI/SQLAlchemy/SQLite и Codex CLI либо OpenAI-совместимый tutor provider.
-Не добавляй auth, multi-user, платежи, PostgreSQL, микросервисы или deployment
-без явного запроса владельца.
+Локальный single-user SlovoKrok (Slovak A1): Next.js/React/TypeScript +
+FastAPI/SQLAlchemy/SQLite + Codex/OpenAI-compatible tutor. Текущая цель — в
+`PROJECT_CHECKPOINT.md`; auth, multi-user, PostgreSQL, микросервисы и deployment
+не добавлять без явного запроса.
 
-## Start here
+1. Выполни `git status --short`; не откатывай существующие изменения.
+2. Прочитай `PROJECT_CHECKPOINT.md` и проследи затронутый runtime path.
+3. Открой только нужную строку маршрутизации ниже.
 
-1. Прочитай `.ai/PROJECT_CONTEXT.md`, `.ai/CURRENT_STATE.md` и
-   `.ai/CONVENTIONS.md`.
-2. Выполни `git status --short`; не откатывай несвязанные изменения.
-3. Проследи фактический runtime path до редактирования.
-4. Меняй минимально необходимое и запускай проверки из `docs/TESTING.md`.
+Не загружай целиком `PROJECT_REPORT.md`, `CHANGELOG.md`, `ROADMAP.md`,
+`.ai/*.md` или весь `docs/` для обычной задачи.
 
-## Sources of truth
+## Context routing
 
-- `frontend/app/page.tsx` и `frontend/app/components/Module1BetaScreen.tsx` — UI;
-- `frontend/app/data/` — структура и содержание курса;
-- `frontend/app/lib/api.ts` — единственный frontend API client;
-- `backend/app/main.py` — FastAPI composition;
-- `backend/app/routers/module1_beta.py`, `routers/tutor.py` — активный API;
-- `backend/app/schemas/` — request/response contracts;
-- `backend/app/models.py` — только активные SQLite-модели;
-- `backend/app/tutor.py` — prompt/provider/parsing;
-- `course-content/slovak-a1/learning/` — методика и публичный профиль.
+- UI/state: `frontend/app/page.tsx`, `components/CourseScreen.tsx`, `data/`.
+- Lesson content: нужный `data/modules/.../lessons/<slug>.ts` и
+  `docs/COURSE_FORMAT.md`.
+- API/storage: `frontend/app/lib/api.ts`, нужный backend router/schema/service;
+  `docs/API.md` или `docs/DATABASE.md` только при изменении контракта.
+- Tutor: `backend/app/tutor.py`, `routers/tutor.py`, `docs/AI_SYSTEM.md`.
+- Cross-layer architecture: `docs/ARCHITECTURE.md`; проверки: `docs/TESTING.md`.
 
-## Safety
+## Contracts and safety
 
-- Не читай, не печатай и не коммить `.env`, credentials, `.ai/private/` или
-  `backend/data/`.
-- Не удаляй/мигрируй SQLite и не очищай `del/` либо `.git` без отдельного
-  подтверждения.
-- `sync-conflict` и `~syncthing~` — recovery, не canonical source.
-- Не выполнять commit, push, PR, release или публикацию без явного разрешения.
-- AI output валидировать структурированной Pydantic-схемой и возвращать
-  безопасные ошибки.
+- Course content живёт во frontend; SQLite хранит состояние. Frontend API —
+  только через `frontend/app/lib/api.ts`.
+- Slug, activity ID, `CourseState`, browser-storage keys, API URL и физические
+  SQLite table names не менять без compatibility/migration плана.
+- AI output недоверенный и валидируется Pydantic; SQLite reads не должны писать.
+- Не читать/публиковать `.env`, credentials, `.ai/private/`, `backend/data/`.
+- Не удалять/мигрировать SQLite и не очищать `del/`, `_git-package/`, `.git`;
+  commit/push/PR/release — только по явному разрешению.
 
-## Verification
+## Done
 
-Используй команды из `docs/TESTING.md`. Перед завершением всегда выполняй
-repository audit, `git diff --check`, проверяй `git status --short` и явно
-сообщай, какие проверки были недоступны.
+Минимально проверь затронутый слой по `docs/TESTING.md`. Перед завершением:
+repository audit, `git diff --check`, `git status --short`. Обновляй только
+`PROJECT_CHECKPOINT.md`; большой report — лишь по отдельному checkpoint-запросу.

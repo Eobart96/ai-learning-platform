@@ -1,0 +1,7 @@
+interface:
+  display_name: "A1 Course Progress Tracker"
+  short_description: "Обновляет стадии тем словацкого курса A1"
+  default_prompt: "Use $a1-course-progress-tracker to record what I completed and tell me the current course stage."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.config import Settings
@@ -69,7 +70,7 @@ def test_only_interactive_runtime_routes_are_exposed(client):
     assert client.get("/api/v1/courses").status_code == 404
     assert client.get("/api/v1/progress").status_code == 404
     assert client.get("/api/v1/tutor/settings").status_code == 200
-    assert client.get("/api/v1/module1-beta/state").status_code == 200
+    assert client.get("/api/v1/course/state").status_code == 200
 
 
 def test_tutor_settings_save_provider_without_exposing_key(client):
@@ -103,32 +104,32 @@ def test_tutor_settings_require_key_and_allow_switching_back_to_codex(client):
     assert codex.json()["provider"] == "codex"
 
 
-def test_module1_beta_state_round_trip_and_legacy_defaults(client):
-    assert client.get("/api/v1/module1-beta/state").json()["exists"] is False
+def test_course_state_round_trip_and_legacy_defaults(client):
+    assert client.get("/api/v1/course/state").json()["exists"] is False
 
-    saved = client.put("/api/v1/module1-beta/state", json=_state_payload())
+    saved = client.put("/api/v1/course/state", json=_state_payload())
     assert saved.status_code == 200
     assert saved.json()["state"]["selectedSlug"] == "greetings"
 
-    restored = client.get("/api/v1/module1-beta/state")
+    restored = client.get("/api/v1/course/state")
     assert restored.json()["state"]["activeModule"] == 1
 
     legacy = _state_payload()
     legacy.pop("activeModule")
     legacy.pop("finalCompletedModules")
-    accepted = client.put("/api/v1/module1-beta/state", json=legacy)
+    accepted = client.put("/api/v1/course/state", json=legacy)
     assert accepted.status_code == 200
     assert accepted.json()["state"]["activeModule"] == 1
     assert accepted.json()["state"]["finalCompletedModules"] == {}
 
 
-def test_compatibility_startup_preserves_beta_progress(client):
-    saved = client.put("/api/v1/module1-beta/state", json=_state_payload())
+def test_compatibility_startup_preserves_course_progress(client):
+    saved = client.put("/api/v1/course/state", json=_state_payload())
     assert saved.status_code == 200
 
     startup_module.initialize_application()
 
-    restored = client.get("/api/v1/module1-beta/state")
+    restored = client.get("/api/v1/course/state")
     assert restored.status_code == 200
     assert restored.json()["state"]["selectedSlug"] == "greetings"
 
@@ -160,26 +161,26 @@ def test_module1_tutor_chat_uses_structured_contract(client):
 def test_module1_exercise_lifecycle(client):
     app.dependency_overrides[get_tutor_provider] = InteractiveTutorProvider
     created = client.post(
-        "/api/v1/module1-beta/exercises",
+        "/api/v1/course/exercises",
         json={"lesson_slug": "greetings", "lesson_title": "Приветствия", "theory": "Dobrý deň."},
     )
     assert created.status_code == 200
     exercise_id = created.json()["id"]
 
     checked = client.post(
-        f"/api/v1/module1-beta/exercises/{exercise_id}/answer",
+        f"/api/v1/course/exercises/{exercise_id}/answer",
         json={"answer": "Dobrý deň"},
     )
     assert checked.status_code == 200
     assert checked.json()["is_correct"] is True
-    assert client.get("/api/v1/module1-beta/exercises?lesson_slug=greetings").json()[0]["latest_attempt"] is not None
-    assert client.delete(f"/api/v1/module1-beta/exercises/{exercise_id}").json() == {"deleted": True}
+    assert client.get("/api/v1/course/exercises?lesson_slug=greetings").json()[0]["latest_attempt"] is not None
+    assert client.delete(f"/api/v1/course/exercises/{exercise_id}").json() == {"deleted": True}
 
 
 def test_module1_reading_lifecycle(client):
     app.dependency_overrides[get_tutor_provider] = InteractiveTutorProvider
     created = client.post(
-        "/api/v1/module1-beta/readings",
+        "/api/v1/course/readings",
         json={
             "lesson_slug": "greetings",
             "lesson_title": "Приветствия",
@@ -191,43 +192,60 @@ def test_module1_reading_lifecycle(client):
     reading_id = created.json()["id"]
 
     checked = client.post(
-        f"/api/v1/module1-beta/readings/{reading_id}/check",
+        f"/api/v1/course/readings/{reading_id}/check",
         json={"retelling": "Анна представилась."},
     )
     assert checked.status_code == 200
     assert checked.json()["score"] == 90
-    assert client.get("/api/v1/module1-beta/readings").json()[0]["latest_attempt"] is not None
-    assert client.delete(f"/api/v1/module1-beta/readings/{reading_id}").json() == {"deleted": True}
+    assert client.get("/api/v1/course/readings").json()[0]["latest_attempt"] is not None
+    assert client.delete(f"/api/v1/course/readings/{reading_id}").json() == {"deleted": True}
 
 
 def test_module1_vocabulary_sync_and_review(client):
-    synced = client.put(
-        "/api/v1/module1-beta/vocabulary/sync",
-        json={
-            "items": [
-                {
-                    "lesson_slug": "greetings",
-                    "lesson_title": "Приветствия",
-                    "word": "Dobrý deň",
-                    "translation": "Добрый день",
-                    "example": "Dobrý deň, Anna.",
-                }
-            ]
-        },
-    )
+    payload = {
+        "items": [
+            {
+                "lesson_slug": "greetings",
+                "lesson_title": "Приветствия",
+                "word": "Dobrý deň",
+                "translation": "Добрый день",
+                "example": "Dobrý deň, Anna.",
+            }
+        ]
+    }
+    synced = client.put("/api/v1/course/vocabulary/sync", json=payload)
     assert synced.status_code == 200
     item_id = synced.json()[0]["id"]
 
-    reviewed = client.post(f"/api/v1/module1-beta/vocabulary/{item_id}/review")
+    repeated = client.put("/api/v1/course/vocabulary/sync", json=payload)
+    assert repeated.status_code == 200
+    assert [item["id"] for item in repeated.json()] == [item_id]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(
+            executor.map(
+                lambda _: client.put("/api/v1/course/vocabulary/sync", json=payload),
+                range(2),
+            )
+        )
+    assert [response.status_code for response in responses] == [200, 200]
+    assert all([item["id"] for item in response.json()] == [item_id] for response in responses)
+
+    reviewed = client.post(f"/api/v1/course/vocabulary/{item_id}/review")
     assert reviewed.status_code == 200
     assert reviewed.json()["review_count"] == 1
     assert reviewed.json()["interval_days"] == 1
+
+    resynced_after_review = client.put("/api/v1/course/vocabulary/sync", json=payload)
+    assert resynced_after_review.status_code == 200
+    assert resynced_after_review.json()[0]["review_count"] == 1
+    assert resynced_after_review.json()[0]["interval_days"] == 1
 
 
 def test_module1_homework_lifecycle(client):
     app.dependency_overrides[get_tutor_provider] = InteractiveTutorProvider
     created = client.post(
-        "/api/v1/module1-beta/homework",
+        "/api/v1/course/homework",
         json={
             "lesson_slug": "introductions",
             "lesson_title": "Представление",
@@ -239,13 +257,13 @@ def test_module1_homework_lifecycle(client):
     homework_id = created.json()["id"]
 
     submitted = client.post(
-        f"/api/v1/module1-beta/homework/{homework_id}/submit",
+        f"/api/v1/course/homework/{homework_id}/submit",
         json={"answer": "Volám sa Anna."},
     )
     assert submitted.status_code == 200
     assert submitted.json()["is_correct"] is True
-    assert client.get("/api/v1/module1-beta/homework").json()[0]["latest_attempt"] is not None
-    assert client.delete(f"/api/v1/module1-beta/homework/{homework_id}").json() == {"deleted": True}
+    assert client.get("/api/v1/course/homework").json()[0]["latest_attempt"] is not None
+    assert client.delete(f"/api/v1/course/homework/{homework_id}").json() == {"deleted": True}
 
 
 def test_tutor_context_keeps_private_profile_local(tmp_path: Path):

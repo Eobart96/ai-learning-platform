@@ -1,5 +1,5 @@
 import type { A1CoverageItem } from "./a1CefrCoverage";
-import { defaultContentRequirements, type BetaModule, type ModuleContentRequirements } from "./courseTypes";
+import { defaultContentRequirements, type CourseModule, type ModuleContentRequirements, type StepPractice } from "./courseTypes";
 
 function normalizeAnswer(value: string): string {
   return value.normalize("NFC").toLocaleLowerCase("sk").replace(/\p{P}+/gu, " ").replace(/\s+/gu, " ").trim();
@@ -9,7 +9,30 @@ function withoutDiacritics(value: string): string {
   return value.normalize("NFD").replace(/\p{M}+/gu, "");
 }
 
-export function validateCourseModules(modules: BetaModule[], coverage: A1CoverageItem[]): void {
+function validatePractice(practice: StepPractice): void {
+  if (!practice.id.trim() || !practice.prompt.trim() || !practice.answer.trim() || !practice.hint.trim() || !practice.explanation.trim()) {
+    throw new Error(`Неполное задание: ${practice.id || "без id"}`);
+  }
+  if (practice.type === "choice") {
+    if (!practice.options || practice.options.length < 2 || new Set(practice.options).size !== practice.options.length) throw new Error(`Неверные варианты выбора: ${practice.id}`);
+    if (!practice.options.includes(practice.answer)) throw new Error(`Ответ отсутствует среди вариантов: ${practice.id}`);
+  }
+  if (practice.type === "order" && (!practice.tokens || practice.tokens.length < 2 || practice.tokens.some((token) => !token.trim()))) {
+    throw new Error(`Неверные токены порядка: ${practice.id}`);
+  }
+  if (practice.type === "pairs") {
+    if (!practice.pairs?.length) throw new Error(`Пустое парное задание: ${practice.id}`);
+    const prompts = new Set<string>();
+    for (const pair of practice.pairs) {
+      if (!pair.prompt.trim() || !pair.answer.trim()) throw new Error(`Неполная пара: ${practice.id}`);
+      if (prompts.has(pair.prompt)) throw new Error(`Повтор условия пары: ${practice.id}/${pair.prompt}`);
+      prompts.add(pair.prompt);
+      if (pair.options && (!pair.options.includes(pair.answer) || new Set(pair.options).size !== pair.options.length)) throw new Error(`Неверные варианты пары: ${practice.id}/${pair.prompt}`);
+    }
+  }
+}
+
+export function validateCourseModules(modules: CourseModule[], coverage: A1CoverageItem[]): void {
   if (!modules.length) throw new Error("Курс не содержит модулей");
   const moduleSlugs = new Set<string>();
   const lessonSlugs = new Set<string>();
@@ -32,14 +55,20 @@ export function validateCourseModules(modules: BetaModule[], coverage: A1Coverag
       if (lesson.sections.filter((section) => section.importance !== "extra").length < requirements.minCoreSections) throw new Error(`Недостаточно обязательных разделов: ${lesson.slug}`);
       if (lesson.stepPractices.length < requirements.minStepPractices) throw new Error(`Недостаточно практики: ${lesson.slug}`);
       if (lesson.knowledgeChecks.length < requirements.minKnowledgeChecks || lesson.finalChecks.length < requirements.minFinalChecks) throw new Error(`Недостаточно проверок: ${lesson.slug}`);
+      for (const section of lesson.sections) {
+        const hasContent = Boolean(section.paragraphs?.length || section.items?.length || section.table?.rows.length || section.note?.trim());
+        if (!section.title.trim() || !hasContent) throw new Error(`Пустой раздел: ${lesson.slug}/${section.title || "без названия"}`);
+        if (section.table && (!section.table.headers.length || section.table.rows.some((row) => row.length !== section.table?.headers.length))) throw new Error(`Неверная таблица: ${lesson.slug}/${section.title}`);
+      }
 
       const coveredSections = new Set(lesson.stepPractices.map((practice) => practice.sectionIndex));
       if (requirements.requirePracticeForEverySection && coveredSections.size !== lesson.sections.length) throw new Error(`Не каждый раздел имеет практику: ${lesson.slug}`);
-      for (const activity of [...lesson.stepPractices, ...lesson.knowledgeChecks, ...lesson.finalChecks]) {
+      for (const activity of [...lesson.stepPractices, ...(lesson.reinforcementPractices ?? []), ...lesson.knowledgeChecks, ...lesson.finalChecks]) {
         if (activityIds.has(activity.id)) throw new Error(`Повтор id задания: ${activity.id}`);
         activityIds.add(activity.id);
       }
-      for (const practice of lesson.stepPractices) {
+      for (const practice of [...lesson.stepPractices, ...(lesson.reinforcementPractices ?? [])]) {
+        validatePractice(practice);
         if (practice.sectionIndex < 0 || practice.sectionIndex >= lesson.sections.length) throw new Error(`Неверный sectionIndex: ${practice.id}`);
         const answer = normalizeAnswer(practice.answer);
         for (const alternative of practice.acceptableAnswers ?? []) {
@@ -48,6 +77,7 @@ export function validateCourseModules(modules: BetaModule[], coverage: A1Coverag
         }
       }
       for (const check of [...lesson.knowledgeChecks, ...lesson.finalChecks]) {
+        if (!check.id.trim() || !check.question.trim() || !check.answer.trim() || !check.explanation.trim() || check.options.length < 2 || new Set(check.options).size !== check.options.length) throw new Error(`Неполная проверка: ${check.id || "без id"}`);
         if (!check.options.includes(check.answer)) throw new Error(`Ответ отсутствует среди вариантов: ${check.id}`);
       }
       for (const example of lesson.theory.examples) {

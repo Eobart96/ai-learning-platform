@@ -13,7 +13,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export type BetaTutorReply = {
+export type TutorReply = {
   provider: string;
   reply: string;
   correction: string | null;
@@ -24,7 +24,7 @@ export type BetaTutorReply = {
   mistake_corrected: string | null;
 };
 
-export type BetaTutorRequest = {
+export type TutorRequest = {
   lesson_slug: string;
   lesson_title: string;
   goals: string[];
@@ -37,8 +37,8 @@ export type BetaTutorRequest = {
   is_final_turn?: boolean;
 };
 
-export function askModule1Tutor(payload: BetaTutorRequest): Promise<BetaTutorReply> {
-  return request<BetaTutorReply>("/tutor/module1-chat", { method: "POST", body: JSON.stringify(payload) });
+export function askModule1Tutor(payload: TutorRequest): Promise<TutorReply> {
+  return request<TutorReply>("/tutor/module1-chat", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export type TutorProviderName = "codex" | "openai" | "polza";
@@ -68,7 +68,7 @@ export function getTutorSettings(): Promise<TutorSettings> { return request<Tuto
 export function updateTutorSettings(payload: TutorSettingsUpdate): Promise<TutorSettings> { return request<TutorSettings>("/tutor/settings", { method: "PUT", body: JSON.stringify(payload) }); }
 export function startCodexLogin(): Promise<CodexLoginStatus> { return request<CodexLoginStatus>("/tutor/codex-login", { method: "POST" }); }
 
-export type Module1BetaState = {
+export type CourseState = {
   activeModule?: number;
   selectedSlug?: string;
   fontSize: "normal" | "large" | "extra-large";
@@ -85,33 +85,33 @@ export type Module1BetaState = {
   lessonSummaries: Record<string, unknown>;
 };
 
-export type Module1BetaStateResponse = { exists: boolean; schema_version: number; state: Module1BetaState | null; updated_at: string | null };
-export function getModule1BetaState(): Promise<Module1BetaStateResponse> { return request<Module1BetaStateResponse>("/module1-beta/state"); }
-export function saveModule1BetaState(state: Module1BetaState): Promise<Module1BetaStateResponse> { return request<Module1BetaStateResponse>("/module1-beta/state", { method: "PUT", body: JSON.stringify(state) }); }
+export type CourseStateResponse = { exists: boolean; schema_version: number; state: CourseState | null; updated_at: string | null };
+export function getCourseState(): Promise<CourseStateResponse> { return request<CourseStateResponse>("/course/state"); }
+export function saveCourseState(state: CourseState): Promise<CourseStateResponse> { return request<CourseStateResponse>("/course/state", { method: "PUT", body: JSON.stringify(state) }); }
 
-export type Module1BetaExerciseAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
-export type Module1BetaExercise = { id: number; lesson_slug: string; lesson_title: string; question: string; instruction: string; created_at: string; latest_attempt: Module1BetaExerciseAttempt | null };
-export function getModule1BetaExercises(lessonSlug?: string): Promise<Module1BetaExercise[]> { const query = lessonSlug ? `?lesson_slug=${encodeURIComponent(lessonSlug)}` : ""; return request<Module1BetaExercise[]>(`/module1-beta/exercises${query}`); }
-export function generateModule1BetaExercise(payload: { lesson_slug: string; lesson_title: string; theory: string }): Promise<Module1BetaExercise> { return request<Module1BetaExercise>("/module1-beta/exercises", { method: "POST", body: JSON.stringify(payload) }); }
-export function answerModule1BetaExercise(exerciseId: number, answer: string): Promise<Module1BetaExerciseAttempt> { return request<Module1BetaExerciseAttempt>(`/module1-beta/exercises/${exerciseId}/answer`, { method: "POST", body: JSON.stringify({ answer }) }); }
-export function deleteModule1BetaExercise(exerciseId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/exercises/${exerciseId}`, { method: "DELETE" }); }
+export type CourseExerciseAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
+export type CourseExercise = { id: number; lesson_slug: string; lesson_title: string; question: string; instruction: string; created_at: string; latest_attempt: CourseExerciseAttempt | null };
+export function getCourseExercises(lessonSlug?: string): Promise<CourseExercise[]> { const query = lessonSlug ? `?lesson_slug=${encodeURIComponent(lessonSlug)}` : ""; return request<CourseExercise[]>(`/course/exercises${query}`); }
+export function generateCourseExercise(payload: { lesson_slug: string; lesson_title: string; theory: string }): Promise<CourseExercise> { return request<CourseExercise>("/course/exercises", { method: "POST", body: JSON.stringify(payload) }); }
+export function answerCourseExercise(exerciseId: number, answer: string): Promise<CourseExerciseAttempt> { return request<CourseExerciseAttempt>(`/course/exercises/${exerciseId}/answer`, { method: "POST", body: JSON.stringify({ answer }) }); }
+export function deleteCourseExercise(exerciseId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/course/exercises/${exerciseId}`, { method: "DELETE" }); }
 
-export type Module1BetaReadingAttempt = { id: number; retelling: string; score: number; feedback: string; corrected_retelling: string; created_at: string };
-export type Module1BetaReading = { id: number; lesson_slug: string; lesson_title: string; title: string; text: string; instruction: string; created_at: string; latest_attempt: Module1BetaReadingAttempt | null };
-export function getModule1BetaReadings(): Promise<Module1BetaReading[]> { return request<Module1BetaReading[]>("/module1-beta/readings"); }
-export function generateModule1BetaReading(payload: { lesson_slug: string; lesson_title: string; theory: string; completed_theory: string }): Promise<Module1BetaReading> { return request<Module1BetaReading>("/module1-beta/readings", { method: "POST", body: JSON.stringify(payload) }); }
-export function checkModule1BetaReading(readingId: number, retelling: string): Promise<Module1BetaReadingAttempt> { return request<Module1BetaReadingAttempt>(`/module1-beta/readings/${readingId}/check`, { method: "POST", body: JSON.stringify({ retelling }) }); }
-export function deleteModule1BetaReading(readingId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/readings/${readingId}`, { method: "DELETE" }); }
+export type CourseReadingAttempt = { id: number; retelling: string; score: number; feedback: string; corrected_retelling: string; created_at: string };
+export type CourseReading = { id: number; lesson_slug: string; lesson_title: string; title: string; text: string; instruction: string; created_at: string; latest_attempt: CourseReadingAttempt | null };
+export function getCourseReadings(): Promise<CourseReading[]> { return request<CourseReading[]>("/course/readings"); }
+export function generateCourseReading(payload: { lesson_slug: string; lesson_title: string; theory: string; completed_theory: string }): Promise<CourseReading> { return request<CourseReading>("/course/readings", { method: "POST", body: JSON.stringify(payload) }); }
+export function checkCourseReading(readingId: number, retelling: string): Promise<CourseReadingAttempt> { return request<CourseReadingAttempt>(`/course/readings/${readingId}/check`, { method: "POST", body: JSON.stringify({ retelling }) }); }
+export function deleteCourseReading(readingId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/course/readings/${readingId}`, { method: "DELETE" }); }
 
-export type Module1BetaVocabularyItem = { id: number; lesson_slug: string; lesson_title: string; word: string; translation: string; example: string | null; review_count: number; interval_days: number; next_review_at: string | null; is_due: boolean };
-export type Module1BetaVocabularySeed = Omit<Module1BetaVocabularyItem, "id" | "review_count" | "interval_days" | "next_review_at" | "is_due">;
-export function syncModule1BetaVocabulary(items: Module1BetaVocabularySeed[]): Promise<Module1BetaVocabularyItem[]> { return request<Module1BetaVocabularyItem[]>("/module1-beta/vocabulary/sync", { method: "PUT", body: JSON.stringify({ items }) }); }
-export function getModule1BetaVocabulary(): Promise<Module1BetaVocabularyItem[]> { return request<Module1BetaVocabularyItem[]>("/module1-beta/vocabulary"); }
-export function reviewModule1BetaVocabulary(itemId: number): Promise<Module1BetaVocabularyItem> { return request<Module1BetaVocabularyItem>(`/module1-beta/vocabulary/${itemId}/review`, { method: "POST" }); }
+export type CourseVocabularyItem = { id: number; lesson_slug: string; lesson_title: string; word: string; translation: string; example: string | null; review_count: number; interval_days: number; next_review_at: string | null; is_due: boolean };
+export type CourseVocabularySeed = Omit<CourseVocabularyItem, "id" | "review_count" | "interval_days" | "next_review_at" | "is_due">;
+export function syncCourseVocabulary(items: CourseVocabularySeed[]): Promise<CourseVocabularyItem[]> { return request<CourseVocabularyItem[]>("/course/vocabulary/sync", { method: "PUT", body: JSON.stringify({ items }) }); }
+export function getCourseVocabulary(): Promise<CourseVocabularyItem[]> { return request<CourseVocabularyItem[]>("/course/vocabulary"); }
+export function reviewCourseVocabulary(itemId: number): Promise<CourseVocabularyItem> { return request<CourseVocabularyItem>(`/course/vocabulary/${itemId}/review`, { method: "POST" }); }
 
-export type Module1BetaHomeworkAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
-export type Module1BetaHomework = { id: number; lesson_slug: string; lesson_title: string; title: string; description: string; focus_category: string; created_at: string; latest_attempt: Module1BetaHomeworkAttempt | null };
-export function getModule1BetaHomework(): Promise<Module1BetaHomework[]> { return request<Module1BetaHomework[]>("/module1-beta/homework"); }
-export function generateModule1BetaHomework(payload: { lesson_slug: string; lesson_title: string; theory: string; known_mistakes: string[] }): Promise<Module1BetaHomework> { return request<Module1BetaHomework>("/module1-beta/homework", { method: "POST", body: JSON.stringify(payload) }); }
-export function submitModule1BetaHomework(homeworkId: number, answer: string): Promise<Module1BetaHomeworkAttempt> { return request<Module1BetaHomeworkAttempt>(`/module1-beta/homework/${homeworkId}/submit`, { method: "POST", body: JSON.stringify({ answer }) }); }
-export function deleteModule1BetaHomework(homeworkId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/module1-beta/homework/${homeworkId}`, { method: "DELETE" }); }
+export type CourseHomeworkAttempt = { id: number; answer: string; is_correct: boolean; score: number; corrected_answer: string; explanation: string; next_exercise: string; created_at: string };
+export type CourseHomework = { id: number; lesson_slug: string; lesson_title: string; title: string; description: string; focus_category: string; created_at: string; latest_attempt: CourseHomeworkAttempt | null };
+export function getCourseHomework(): Promise<CourseHomework[]> { return request<CourseHomework[]>("/course/homework"); }
+export function generateCourseHomework(payload: { lesson_slug: string; lesson_title: string; theory: string; known_mistakes: string[] }): Promise<CourseHomework> { return request<CourseHomework>("/course/homework", { method: "POST", body: JSON.stringify(payload) }); }
+export function submitCourseHomework(homeworkId: number, answer: string): Promise<CourseHomeworkAttempt> { return request<CourseHomeworkAttempt>(`/course/homework/${homeworkId}/submit`, { method: "POST", body: JSON.stringify({ answer }) }); }
+export function deleteCourseHomework(homeworkId: number): Promise<{ deleted: boolean }> { return request<{ deleted: boolean }>(`/course/homework/${homeworkId}`, { method: "DELETE" }); }

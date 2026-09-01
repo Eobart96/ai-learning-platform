@@ -1,1 +1,1 @@
-"""AI Learning Platform backend package."""
+"""SlovoKrok backend package."""

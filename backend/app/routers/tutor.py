@@ -6,8 +6,8 @@ from pydantic import ValidationError
 from app.config import get_settings
 from app.dependencies import get_tutor_provider
 from app.schemas.tutor import (
-    BetaChatRequest,
-    BetaChatResponse,
+    TutorChatRequest,
+    TutorChatResponse,
     CodexLoginResponse,
     TutorSettingsResponse,
     TutorSettingsUpdate,
@@ -63,11 +63,11 @@ def codex_login() -> CodexLoginResponse:
     return CodexLoginResponse(installed=status.installed, authenticated=status.authenticated, message=status.message)
 
 
-@router.post("/api/v1/tutor/module1-chat", response_model=BetaChatResponse)
+@router.post("/api/v1/tutor/module1-chat", response_model=TutorChatResponse)
 def module1_chat(
-    request: BetaChatRequest,
+    request: TutorChatRequest,
     provider: TutorProvider = Depends(get_tutor_provider),
-) -> BetaChatResponse:
+) -> TutorChatResponse:
     history = "\n".join(f"{item.role}: {item.content}" for item in request.history[-6:]) or "Диалог только начинается."
     known_mistakes = "; ".join(request.known_mistakes) or "нет"
     current_task = request.current_task or "явное задание отсутствует — опирайся на историю"
@@ -117,7 +117,7 @@ JSON-схема:
         if not raw.startswith("{") and "{" in raw and "}" in raw:
             raw = raw[raw.find("{"):raw.rfind("}") + 1]
         payload = json.loads(raw)
-        return BetaChatResponse(provider=get_settings().tutor_provider, **payload)
+        return TutorChatResponse(provider=get_settings().tutor_provider, **payload)
     except (json.JSONDecodeError, ValidationError) as error:
         raise HTTPException(status_code=502, detail="Codex вернул ответ в неверном формате") from error
     except (FileNotFoundError, RuntimeError, TimeoutError) as error:

@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables or .env."""
 
-    app_name: str = "AI Learning Platform"
+    app_name: str = "SlovoKrok"
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'backend' / 'data' / 'app.db'}"
     learning_path: Path = PROJECT_ROOT / "course-content" / "slovak-a1" / "learning"
     project_root: Path = PROJECT_ROOT

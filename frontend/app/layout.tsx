@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Learning Platform",
-  description: "Учебная платформа словацкого языка A1",
+  title: "SlovoKrok — словацкий язык A1",
+  description: "SlovoKrok — интерактивный курс словацкого языка уровня A1",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

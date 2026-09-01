@@ -1,5 +1,5 @@
 name: Сообщение об ошибке
-description: Помогите воспроизвести проблему в AI Learning Platform
+description: Помогите воспроизвести проблему в SlovoKrok
 title: "bug: "
 labels: [bug]
 body:

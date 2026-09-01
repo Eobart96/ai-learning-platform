@@ -1,0 +1,211 @@
+import { defineModule1Lesson } from "../lessonFactory";
+
+export const questionWordsLesson = defineModule1Lesson({
+  slug: "question-words",
+  title: "Вопросительные слова и порядок слов",
+  slovakTitle: "Opytovacie slová a slovosled",
+  description: "Выбирайте вопросительное слово по смыслу и стройте короткие специальные вопросы и вопросы «да/нет».",
+  duration: "30–35 мин",
+  goals: [
+    "Выбрать вопросительное слово по смыслу",
+    "Построить нейтральный специальный вопрос",
+    "Задать вопрос «да/нет» без вспомогательного глагола",
+    "Избегать лишних местоимений и русского порядка слов",
+  ],
+  summary: "Маршрут темы: кто/что → где/куда → когда/как → порядок → практика. Словацкий порядок слов гибкий, но на A1 начинайте с нейтральной модели: вопросительное слово + глагол + остальное.",
+  rules: [
+    "Kto спрашивает о человеке, čo — о предмете или действии.",
+    "Kde означает «где», kam — «куда», odkiaľ — «откуда».",
+    "Kedy спрашивает о времени, ako — о способе или состоянии, prečo — о причине, koľko — о количестве или цене.",
+    "Aký/aká/aké спрашивает о качестве, ktorý/ktorá/ktoré — о выборе, čí/čia/čie — о принадлежности.",
+    "В нейтральном специальном вопросе вопросительное слово стоит перед глаголом: Kde bývaš? Kedy začína kurz?",
+    "Вопрос «да/нет» не требует вспомогательного do/does: Máte čas? Je Peter doma?",
+    "Личное местоимение обычно не нужно: Kde bývaš? естественнее, чем Kde ty bývaš?",
+  ],
+  examples: [
+    { slovak: "Kto je to? — To je Eva. Čo je to? — To je kniha.", russian: "Кто это? — Это Эва. Что это? — Это книга.", explanation: "Kto относится к человеку, čo — к предмету." },
+    { slovak: "Kde si? Kam ideš? Odkiaľ ste?", russian: "Где ты? Куда ты идёшь? Откуда вы?", explanation: "Три слова различают местонахождение, направление и исходную точку." },
+    { slovak: "Aká kniha? Ktorý autobus? Čie auto?", russian: "Какая книга? Который автобус? Чья машина?", explanation: "Форма вопросительного слова согласуется с родом существительного." },
+    { slovak: "Kde býva Peter? Je Peter doma?", russian: "Где живёт Петер? Петер дома?", explanation: "Специальный вопрос начинается с kde; вопрос «да/нет» — с глагола je." },
+  ],
+  sections: [
+    {
+      title: "Основные вопросительные слова",
+      table: {
+        headers: ["Слово", "Значение", "Пример"],
+        rows: [
+          ["kto", "кто", "Kto je to?"],
+          ["čo", "что", "Čo robíš?"],
+          ["kde", "где", "Kde bývaš?"],
+          ["kam", "куда", "Kam ideš?"],
+          ["odkiaľ", "откуда", "Odkiaľ ste?"],
+          ["kedy", "когда", "Kedy začína kurz?"],
+          ["ako", "как", "Ako sa máš?"],
+          ["prečo", "почему", "Prečo sa učíš po slovensky?"],
+          ["koľko", "сколько", "Koľko to stojí?"],
+        ],
+      },
+      items: ["Kde si? — местонахождение.", "Kam ideš? — направление.", "Odkiaľ ideš? — исходная точка."],
+      note: "Диакритика важна: čo, odkiaľ, prečo, koľko.",
+    },
+    {
+      title: "Какой, который и чей",
+      table: {
+        headers: ["Значение", "Мужской род", "Женский род", "Средний род"],
+        rows: [
+          ["качество / тип", "aký deň", "aká kniha", "aké mesto"],
+          ["выбор", "ktorý autobus", "ktorá ulica", "ktoré číslo"],
+          ["принадлежность", "čí telefón", "čia taška", "čie auto"],
+        ],
+      },
+      items: [
+        "Aký je kurz? — Каков курс?",
+        "Ktorý kurz chceš? — Какой из курсов ты хочешь?",
+        "Koľko máš rokov? Koľko stojí káva? — запоминайте существительное внутри готового вопроса.",
+      ],
+    },
+    {
+      title: "Нейтральный порядок слов",
+      table: {
+        headers: ["Схема", "Пример", "Перевод"],
+        rows: [
+          ["слово + глагол", "Kde bývaš?", "Где ты живёшь?"],
+          ["слово + глагол + объект", "Čo čítaš večer?", "Что ты читаешь вечером?"],
+          ["слово + глагол + подлежащее", "Kde býva Peter?", "Где живёт Петер?"],
+          ["слово = подлежащее", "Kto pracuje doma?", "Кто работает дома?"],
+        ],
+      },
+      items: [
+        "Kde bývaš? естественнее, чем Kde ty bývaš?",
+        "Bývaš v Bratislave. → Bývaš v Bratislave?",
+        "Peter je doma. → Je Peter doma?",
+        "Máte čas. → Máte čas?",
+        "Kurz začína o deviatej. → Začína kurz o deviatej?",
+      ],
+      note: "Не добавляйте do/does: Pracuješ? Máš čas? Ste doma?",
+    },
+    {
+      title: "Банк вопросов и ответов",
+      table: {
+        headers: ["Вопрос", "Короткий ответ"],
+        rows: [
+          ["Kto je to?", "To je Eva."],
+          ["Čo je to?", "To je kniha."],
+          ["Kde bývaš?", "Bývam v Moskve."],
+          ["Kam ideš?", "Idem do práce."],
+          ["Odkiaľ ste?", "Som z Ruska."],
+          ["Kedy je kurz?", "V pondelok."],
+          ["Ako sa voláš?", "Volám sa Ari."],
+          ["Prečo sa učíš po slovensky?", "Lebo bývam na Slovensku."],
+          ["Koľko to stojí?", "Päť eur."],
+          ["Aký je film?", "Je dobrý."],
+          ["Ktorý autobus ide do centra?", "Autobus číslo štyri."],
+          ["Čia je tá taška?", "Je Evina."],
+          ["Máte čas?", "Áno, mám."],
+          ["Je Peter doma?", "Nie, nie je."],
+          ["Ste pripravení?", "Áno, sme."],
+          ["Hovoríte po slovensky?", "Trochu."],
+        ],
+      },
+      note: "Сначала закройте ответы и ответьте о себе; затем закройте вопросы и восстановите их.",
+    },
+    {
+      title: "Частые ошибки",
+      items: [
+        "Не путайте kde, kam и odkiaľ.",
+        "Не добавляйте ty/vy, если форма глагола уже ясна.",
+        "Не калькируйте английское do/does.",
+        "Согласуйте aký/aká/aké с существительным.",
+      ],
+      note: "Перед финальным тестом проверьте: вопросительное слово соответствует смыслу, а глагол стоит достаточно рано?",
+    },
+  ],
+  chatPrompt: "Проведём мини-интервью. Задайте шесть коротких вопросов об имени, стране, городе, работе, языке и причине изучения словацкого.",
+  chatSuggestions: ["Ako sa voláte?", "Odkiaľ ste?", "Kde bývate?", "Prečo sa učíte po slovensky?"],
+  practices: [
+    { sectionIndex: 0, type: "pairs", prompt: "Выберите вопросительное слово по смыслу.", answer: "kto; kam; kde; koľko", pairs: [
+      { prompt: "___ je to? — кто", answer: "Kto", options: ["Kto", "Čo", "Kde"] },
+      { prompt: "___ ideš? — куда", answer: "Kam", options: ["Kde", "Kam", "Kedy"] },
+      { prompt: "___ bývaš? — где", answer: "Kde", options: ["Kde", "Kam", "Odkiaľ"] },
+      { prompt: "___ to stojí? — сколько", answer: "Koľko", options: ["Kedy", "Ako", "Koľko"] },
+    ], hint: "Определите, о человеке, направлении, месте или количестве вопрос.", explanation: "Правильно: Kto je to? Kam ideš? Kde bývaš? Koľko to stojí?" },
+    { sectionIndex: 1, type: "choice", prompt: "Какая форма означает «чья машина»?", options: ["čí auto", "čia auto", "čie auto"], answer: "čie auto", hint: "Auto — средний род.", explanation: "Со средним родом используется čie: čie auto." },
+    { sectionIndex: 2, type: "order", prompt: "Соберите «Когда начинается курс?». ", tokens: ["kurz?", "začína", "Kedy"], answer: "Kedy začína kurz?", hint: "Вопросительное слово, затем глагол.", explanation: "Нейтральный порядок: Kedy začína kurz?" },
+    { sectionIndex: 3, type: "choice", prompt: "Какой ответ подходит к Odkiaľ ste?", options: ["Som z Ruska.", "Bývam v centre.", "V pondelok."], answer: "Som z Ruska.", hint: "Odkiaľ спрашивает об исходной точке или происхождении.", explanation: "Som z Ruska — ответ на Odkiaľ ste?" },
+    { sectionIndex: 4, type: "choice", prompt: "Какой вопрос построен нейтрально?", options: ["Kde bývaš?", "Kde ty bývaš?", "Kde do bývaš?"], answer: "Kde bývaš?", hint: "Не добавляйте лишнее местоимение или do.", explanation: "Нейтрально: вопросительное слово + глагол — Kde bývaš?" },
+  ],
+  assessmentMode: "interactive",
+  materialAssessmentStep: false,
+  reinforcementLabel: "Финальный тест темы",
+  reinforcementTitle: "Выполните шесть заданий темы 14",
+  reinforcementPractices: [
+    {
+      sectionIndex: 0, type: "pairs", prompt: "Выберите вопросительное слово по подсказке.", answer: "Kto; Kam; Kde; Koľko",
+      pairs: [
+        { prompt: "___ je to? — кто", answer: "Kto", options: ["Kto", "Čo", "Kde"] },
+        { prompt: "___ ideš? — куда", answer: "Kam", options: ["Kde", "Kam", "Kedy"] },
+        { prompt: "___ bývaš? — где", answer: "Kde", options: ["Kde", "Kam", "Odkiaľ"] },
+        { prompt: "___ to stojí? — сколько", answer: "Koľko", options: ["Kedy", "Ako", "Koľko"] },
+      ],
+      hint: "Сначала определите смысл вопроса.", explanation: "Kto — кто, Kam — куда, Kde — где, Koľko — сколько.",
+    },
+    {
+      sectionIndex: 0, type: "pairs", prompt: "Различите место, направление и исходную точку.", answer: "Kde; Kam; Odkiaľ",
+      pairs: [
+        { prompt: "___ si?", answer: "Kde", options: ["Kde", "Kam", "Odkiaľ"] },
+        { prompt: "___ ideš?", answer: "Kam", options: ["Kde", "Kam", "Odkiaľ"] },
+        { prompt: "___ ste?", answer: "Odkiaľ", options: ["Kde", "Kam", "Odkiaľ"] },
+      ],
+      hint: "Где — куда — откуда.", explanation: "Правильно: Kde si? Kam ideš? Odkiaľ ste?",
+    },
+    {
+      sectionIndex: 2, type: "pairs", prompt: "Выберите нейтральный порядок слов.", answer: "Kde bývaš?; Kedy začína kurz?; Je Peter doma?",
+      pairs: [
+        { prompt: "bývaš / kde", answer: "Kde bývaš?", options: ["Kde bývaš?", "Bývaš kde?", "Kde ty bývaš?"] },
+        { prompt: "kurz / kedy / začína", answer: "Kedy začína kurz?", options: ["Kedy začína kurz?", "Kurz kedy začína?", "Kedy kurz začína?"] },
+        { prompt: "Peter / je / doma", answer: "Je Peter doma?", options: ["Je Peter doma?", "Peter doma je?", "Do Peter je doma?"] },
+      ],
+      hint: "Специальный вопрос начинает вопросительное слово; вопрос «да/нет» — глагол.", explanation: "Нейтрально: Kde bývaš? Kedy začína kurz? Je Peter doma?",
+    },
+    {
+      sectionIndex: 1, type: "pairs", prompt: "Выберите согласованную форму.", answer: "aká kniha; ktorý autobus; čie auto",
+      pairs: [
+        { prompt: "___ kniha", answer: "aká kniha", options: ["aký kniha", "aká kniha"] },
+        { prompt: "___ autobus", answer: "ktorý autobus", options: ["ktorý autobus", "ktorá autobus"] },
+        { prompt: "___ auto", answer: "čie auto", options: ["čí auto", "čia auto", "čie auto"] },
+      ],
+      hint: "Kniha — женский род, autobus — мужской, auto — средний.", explanation: "Правильно: aká kniha; ktorý autobus; čie auto.",
+    },
+    {
+      sectionIndex: 3, type: "pairs", prompt: "Переведите каждый вопрос на словацкий.", answer: "Kto je to?; Kde bývate?; Kedy je kurz?; Máte čas?",
+      pairs: [
+        { prompt: "Кто это?", answer: "Kto je to?", acceptableAnswers: ["Kto je to"], inputHint: "Введите вопрос" },
+        { prompt: "Где вы живёте?", answer: "Kde bývate?", acceptableAnswers: ["Kde bývate"], inputHint: "Введите вопрос" },
+        { prompt: "Когда курс?", answer: "Kedy je kurz?", acceptableAnswers: ["Kedy je kurz"], inputHint: "Введите вопрос" },
+        { prompt: "У вас есть время?", answer: "Máte čas?", acceptableAnswers: ["Máte čas"], inputHint: "Введите вопрос" },
+      ],
+      hint: "Каждая строка проверяется отдельно; следите за диакритикой.", explanation: "Правильно: Kto je to? Kde bývate? Kedy je kurz? Máte čas?",
+    },
+    {
+      sectionIndex: 4, type: "pairs", prompt: "Соберите мини-интервью: выберите вопрос для каждой темы.", answer: "Ako sa voláte?; Odkiaľ ste?; Kde bývate?; Čo robíte?; Hovoríte po slovensky?; Prečo sa učíte po slovensky?",
+      pairs: [
+        { prompt: "имя", answer: "Ako sa voláte?", options: ["Ako sa voláte?", "Kde bývate?", "Čo robíte?"] },
+        { prompt: "страна", answer: "Odkiaľ ste?", options: ["Kam idete?", "Odkiaľ ste?", "Kedy je kurz?"] },
+        { prompt: "город", answer: "Kde bývate?", options: ["Kde bývate?", "Koľko to stojí?", "Kto je to?"] },
+        { prompt: "работа", answer: "Čo robíte?", options: ["Čo robíte?", "Ako sa máte?", "Čia je taška?"] },
+        { prompt: "язык", answer: "Hovoríte po slovensky?", options: ["Hovoríte po slovensky?", "Ktorý autobus ide?", "Je Peter doma?"] },
+        { prompt: "причина учёбы", answer: "Prečo sa učíte po slovensky?", options: ["Prečo sa učíte po slovensky?", "Kedy sa učíte po slovensky?", "Koľko sa učíte po slovensky?"] },
+      ],
+      hint: "Каждый вопрос должен соответствовать одной теме интервью.", explanation: "Интервью покрывает имя, страну, город, работу, язык и причину учёбы без преждевременных падежных конструкций.",
+    },
+  ],
+  checks: [
+    { question: "Как спросить «Куда ты идёшь?»?", options: ["Kde ideš?", "Kam ideš?", "Odkiaľ ideš?"], answer: "Kam ideš?", explanation: "Kam спрашивает о направлении." },
+    { question: "Какая форма согласуется со словом auto?", options: ["čí auto", "čia auto", "čie auto"], answer: "čie auto", explanation: "Auto — средний род, поэтому čie auto." },
+    { question: "Какой вопрос «да/нет» построен нейтрально?", options: ["Je Peter doma?", "Do Peter je doma?", "Peter doma je?"], answer: "Je Peter doma?", explanation: "Вспомогательный do не нужен; вопрос начинается с je." },
+  ],
+  finals: [
+    { question: "Как спросить о цене?", options: ["Koľko to stojí?", "Kedy sa stretneme?", "Kde bývaš?"], answer: "Koľko to stojí?", explanation: "Koľko to stojí? — «Сколько это стоит?»" },
+    { question: "Какой ответ подходит к Odkiaľ ste?", options: ["Som z Poľska.", "Bývam v centre.", "Mám tridsať rokov."], answer: "Som z Poľska.", explanation: "Odkiaľ запрашивает происхождение." },
+  ],
+});

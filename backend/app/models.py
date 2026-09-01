@@ -10,7 +10,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Module1BetaState(Base):
+class CourseState(Base):
     __tablename__ = "module1_beta_state"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
@@ -19,7 +19,7 @@ class Module1BetaState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
-class Module1BetaExercise(Base):
+class CourseExercise(Base):
     __tablename__ = "module1_beta_exercises"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -31,7 +31,7 @@ class Module1BetaExercise(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class Module1BetaExerciseAttempt(Base):
+class CourseExerciseAttempt(Base):
     __tablename__ = "module1_beta_exercise_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -45,7 +45,7 @@ class Module1BetaExerciseAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class Module1BetaReading(Base):
+class CourseReading(Base):
     __tablename__ = "module1_beta_readings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -57,7 +57,7 @@ class Module1BetaReading(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class Module1BetaReadingAttempt(Base):
+class CourseReadingAttempt(Base):
     __tablename__ = "module1_beta_reading_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -69,7 +69,7 @@ class Module1BetaReadingAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class Module1BetaVocabularyItem(Base):
+class CourseVocabularyItem(Base):
     __tablename__ = "module1_beta_vocabulary"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -86,7 +86,7 @@ class Module1BetaVocabularyItem(Base):
     __table_args__ = (UniqueConstraint("lesson_slug", "word"),)
 
 
-class Module1BetaHomework(Base):
+class CourseHomework(Base):
     __tablename__ = "module1_beta_homework"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -99,7 +99,7 @@ class Module1BetaHomework(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
 
-class Module1BetaHomeworkAttempt(Base):
+class CourseHomeworkAttempt(Base):
     __tablename__ = "module1_beta_homework_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)

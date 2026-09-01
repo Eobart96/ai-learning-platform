@@ -19,34 +19,34 @@ Base URL локально: `http://127.0.0.1:8000`. Интерактивная �
 Сохранённые ключи никогда не входят в response schema. Пустое поле ключа при
 обновлении сохраняет прежнее значение; удаление требует отдельного флага.
 
-## Module 1 state
+## Course state
 
-- `GET /api/v1/module1-beta/state`
-- `PUT /api/v1/module1-beta/state`
+- `GET /api/v1/course/state`
+- `PUT /api/v1/course/state`
 
 ## Exercises
 
-- `GET|POST /api/v1/module1-beta/exercises`
-- `POST /api/v1/module1-beta/exercises/{id}/answer`
-- `DELETE /api/v1/module1-beta/exercises/{id}`
+- `GET|POST /api/v1/course/exercises`
+- `POST /api/v1/course/exercises/{id}/answer`
+- `DELETE /api/v1/course/exercises/{id}`
 
 ## Reading
 
-- `GET|POST /api/v1/module1-beta/readings`
-- `POST /api/v1/module1-beta/readings/{id}/check`
-- `DELETE /api/v1/module1-beta/readings/{id}`
+- `GET|POST /api/v1/course/readings`
+- `POST /api/v1/course/readings/{id}/check`
+- `DELETE /api/v1/course/readings/{id}`
 
 ## Vocabulary
 
-- `PUT /api/v1/module1-beta/vocabulary/sync`
-- `GET /api/v1/module1-beta/vocabulary`
-- `POST /api/v1/module1-beta/vocabulary/{id}/review`
+- `PUT /api/v1/course/vocabulary/sync`
+- `GET /api/v1/course/vocabulary`
+- `POST /api/v1/course/vocabulary/{id}/review`
 
 ## Homework
 
-- `GET|POST /api/v1/module1-beta/homework`
-- `POST /api/v1/module1-beta/homework/{id}/submit`
-- `DELETE /api/v1/module1-beta/homework/{id}`
+- `GET|POST /api/v1/course/homework`
+- `POST /api/v1/course/homework/{id}/submit`
+- `DELETE /api/v1/course/homework/{id}`
 
 Точные поля и ограничения определены Pydantic-схемами в
 `backend/app/schemas/` и типами `frontend/app/lib/api.ts`. Старые courses,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Module1BetaScreen } from "./components/Module1BetaScreen";
+import { CourseScreen } from "./components/CourseScreen";
 import { AiSettingsPanel } from "./components/AiSettingsPanel";
 
 type Theme = "light" | "dark";
@@ -34,14 +34,14 @@ export default function HomePage() {
   const isDark = theme === "dark";
 
   return (
-    <main className="module-beta-route-shell">
-      <header className="module-beta-route-header">
+    <main className="course-route-shell">
+      <header className="course-route-header">
         <div>
-          <span>Курс словацкого языка</span>
-          <strong>Slovak A1</strong>
+          <span>Курс словацкого языка · Slovak A1</span>
+          <strong>SlovoKrok</strong>
         </div>
         <nav aria-label="Навигация курса Slovak A1">
-          <div className="module-beta-primary-navigation" aria-label="Основные разделы">
+          <div className="course-primary-navigation" aria-label="Основные разделы">
             <button type="button" className={activeArea === "learning" ? "active" : ""} onClick={() => setActiveArea("learning")}>Обучение</button>
             <button type="button" className={activeArea === "exercises" ? "active" : ""} onClick={() => setActiveArea("exercises")}>Упражнения</button>
             <button type="button" className={activeArea === "reading" ? "active" : ""} onClick={() => setActiveArea("reading")}>Чтение</button>
@@ -63,7 +63,7 @@ export default function HomePage() {
           </button>
         </nav>
       </header>
-      <Module1BetaScreen requestedArea={activeArea} onAreaChange={setActiveArea} />
+      <CourseScreen requestedArea={activeArea} onAreaChange={setActiveArea} />
       <AiSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   );

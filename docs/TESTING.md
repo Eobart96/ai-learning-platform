@@ -45,9 +45,10 @@ Set-Location frontend
 npm.cmd audit --omit=dev --audit-level=high
 ```
 
-Последний полный набор после добавления AI-настроек: backend
-`11 passed, 1 warning`, Playwright `12 passed`, validation/TypeScript —
-успешно. Next.js production build и Python compileall также прошли.
+Последний полный набор 2026-09-01 после завершения Module 1 и переименования в
+SlovoKrok: backend `11 passed, 1 warning`, Playwright `46 passed`,
+validation/TypeScript — успешно. Next.js production build, Python compileall,
+launcher self-test и repository audit также прошли.
 
 Checkpoint после публикации подтвердил те же 11 backend и 12 Playwright
 тестов, validation/TypeScript, compileall, pip check и launcher self-test.

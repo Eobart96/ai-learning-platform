@@ -6,25 +6,25 @@ from pydantic import BaseModel, Field
 ShortChatSuggestion = Annotated[str, Field(min_length=1, max_length=160)]
 
 
-class BetaChatHistoryMessage(BaseModel):
+class TutorChatHistoryMessage(BaseModel):
     role: str
     content: str = Field(max_length=2_000)
 
 
-class BetaChatRequest(BaseModel):
+class TutorChatRequest(BaseModel):
     lesson_slug: str = Field(max_length=100)
     lesson_title: str = Field(max_length=200)
     goals: list[str] = Field(max_length=10)
     theory: str = Field(max_length=8_000)
     known_mistakes: list[str] = Field(default_factory=list, max_length=20)
-    history: list[BetaChatHistoryMessage] = Field(default_factory=list, max_length=6)
+    history: list[TutorChatHistoryMessage] = Field(default_factory=list, max_length=6)
     message: str = Field(min_length=1, max_length=2_000)
     current_task: str | None = Field(default=None, max_length=500)
     interaction_kind: Literal["answer", "clarification", "continue"] = "answer"
     is_final_turn: bool = False
 
 
-class BetaChatResponse(BaseModel):
+class TutorChatResponse(BaseModel):
     provider: str
     reply: str
     correction: str | None = None

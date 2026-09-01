@@ -12,13 +12,21 @@ export type LessonSection = {
 export type StepPractice = {
   id: string;
   sectionIndex: number;
-  type: "choice" | "text" | "order";
+  type: "choice" | "text" | "order" | "pairs";
   prompt: string;
   options?: string[];
   tokens?: string[];
   tokenSeparator?: "" | " ";
   answer: string;
   acceptableAnswers?: string[];
+  pairs?: Array<{
+    prompt: string;
+    answer: string;
+    acceptableAnswers?: string[];
+    options?: string[];
+    inputHint?: string;
+  }>;
+  showSlovakKeyboard?: boolean;
   hint: string;
   explanation: string;
 };
@@ -31,7 +39,7 @@ export type KnowledgeCheck = {
   explanation: string;
 };
 
-export type BetaLesson = {
+export type CourseLesson = {
   slug: string;
   order: number;
   title: string;
@@ -50,6 +58,11 @@ export type BetaLesson = {
   knowledgeChecks: KnowledgeCheck[];
   finalChecks: KnowledgeCheck[];
   stepPractices: StepPractice[];
+  assessmentMode?: "quiz" | "interactive";
+  materialAssessmentStep?: boolean;
+  reinforcementLabel?: string;
+  reinforcementTitle?: string;
+  reinforcementPractices?: StepPractice[];
 };
 
 export type CourseTopicGroup = {
@@ -71,13 +84,13 @@ export type ModuleContentRequirements = {
   requirePracticeForEverySection: boolean;
 };
 
-export type BetaModule = {
+export type CourseModule = {
   slug: string;
   order: number;
   title: string;
   level: string;
   description: string;
-  lessons: BetaLesson[];
+  lessons: CourseLesson[];
   topicGroups?: CourseTopicGroup[];
   contentRequirements?: Partial<ModuleContentRequirements>;
 };

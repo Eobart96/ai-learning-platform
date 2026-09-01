@@ -147,7 +147,7 @@ function Backup-StaleVenv {
 
 function Invoke-Install {
     Write-Host "==============================================="
-    Write-Host "  AI Learning Platform - dependency setup"
+    Write-Host "  SlovoKrok - dependency setup"
     Write-Host "==============================================="
 
     if (-not (Test-Path -LiteralPath (Join-Path $BackendRoot "requirements.txt"))) {
@@ -234,7 +234,7 @@ function Test-BackendHealthy {
 function Test-FrontendHealthy {
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri $FrontendUrl -TimeoutSec 3
-        return $response.StatusCode -eq 200 -and $response.Content -match "AI Learning Platform"
+        return $response.StatusCode -eq 200 -and $response.Content -match "SlovoKrok"
     } catch {
         return $false
     }
@@ -307,7 +307,7 @@ function Wait-Until([scriptblock]$Probe, [int]$TimeoutSeconds, [string]$Name) {
 
 function Invoke-Start {
     Write-Host "==============================================="
-    Write-Host "  AI Learning Platform"
+    Write-Host "  SlovoKrok"
     Write-Host "==============================================="
 
     $status = Get-EnvironmentStatus
@@ -372,7 +372,7 @@ function Invoke-Start {
         throw
     }
 
-    Write-Ok "AI Learning Platform is ready at $FrontendUrl"
+    Write-Ok "SlovoKrok is ready at $FrontendUrl"
     Write-Step "Use stop.cmd to stop only processes started by this launcher."
     if (-not $NoBrowser) { Start-Process $FrontendUrl }
 }
@@ -397,7 +397,7 @@ function Invoke-Stop {
 
 function Invoke-Doctor {
     $status = Get-EnvironmentStatus
-    Write-Host "AI Learning Platform diagnostics"
+    Write-Host "SlovoKrok diagnostics"
     Write-Host "Project: $ProjectRoot"
     if ($status.SystemPython) { Write-Ok "System Python 3.12+ found." } else { Write-Failure "System Python 3.12+ not found." }
     if ($status.NodeSupported -and $status.NpmPath) { Write-Ok "Node.js $($status.NodeVersion) and npm found." } else { Write-Failure "Node.js 20+ with npm not found." }
