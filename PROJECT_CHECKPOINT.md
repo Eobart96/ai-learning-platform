@@ -6,6 +6,8 @@ Updated: 2026-09-01
 
 Публичное название продукта — **SlovoKrok**. Название репозитория, его remote
 URL и стабильные технические идентификаторы не переименовываются.
+Крупные пользовательские этапы публикуются в корневом `UPDATES.md`; первая
+запись фиксирует завершение и ручную приёмку Module 1.
 
 Frontend course decomposition завершена. `courseProgress.ts` теперь содержит
 чистые scheduling, summary и reset-scope transforms; controller сохраняет
