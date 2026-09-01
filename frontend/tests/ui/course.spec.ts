@@ -408,6 +408,26 @@ test("tablet header keeps navigation and settings inside the viewport", async ({
   expect(dimensions.settingsRight).toBeLessThanOrEqual(dimensions.clientWidth);
 });
 
+test("module switcher keeps a visible gap before the course badge", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockStateApi(page, createState());
+  await openCourse(page);
+
+  const spacing = await page.evaluate(() => {
+    const switcher = document.querySelector<HTMLElement>(".course-module-switcher");
+    const badge = document.querySelector<HTMLElement>(".course-kicker");
+    const switcherBox = switcher?.getBoundingClientRect();
+    const badgeBox = badge?.getBoundingClientRect();
+    return {
+      horizontalGap: (badgeBox?.left ?? 0) - (switcherBox?.right ?? 0),
+      marginRight: switcher ? Number.parseFloat(getComputedStyle(switcher).marginRight) : 0,
+    };
+  });
+
+  expect(spacing.marginRight).toBe(12);
+  expect(spacing.horizontalGap).toBeGreaterThanOrEqual(12);
+});
+
 test("mobile material uses a compact lesson picker before the article", async ({ page }) => {
   const lesson = module1.lessons[0];
   await page.setViewportSize({ width: 390, height: 844 });

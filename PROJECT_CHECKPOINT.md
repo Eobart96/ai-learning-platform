@@ -82,7 +82,7 @@ Module 1, тема 14 `question-words` сверена с семистранич�
   чего фокус и каретка возвращаются в поле. Добавлена Playwright-регрессия для
   обоих вариантов; `validate:a1`/TypeScript и целевой UI-тест успешны.
 - Текущий шаг: `validate:a1`/TypeScript, production build и Playwright
-  `46 passed` успешны. UI-сценарии тем 11–14 проверяют количество учебных
+  `47 passed` успешны. UI-сценарии тем 11–14 проверяют количество учебных
   шагов, отдельные финальные тесты, построчные ошибки, допустимые ответы и
   исправление форм. Direct tests подтверждают deterministic mistake
   schedule, immutable summary и scoped reset с preservation внешних данных;
@@ -105,6 +105,10 @@ Module 1, тема 14 `question-words` сверена с семистранич�
   `11 passed`, compileall успешно.
 - Исправлено: breakpoint шапки поднят до 1050 px. Автотест и browser QA при
   768 px подтверждают, что document/header/settings остаются внутри viewport.
+- Исправлено: между переключателем учебного модуля и плашкой курса установлен
+  стабильный горизонтальный отступ 12 px; на mobile правый margin снимается,
+  чтобы переключатель шириной 100% не создавал overflow. Добавлена
+  Playwright-регрессия по фактической геометрии элементов.
 - Исправлено: до 650 px боковой список тем заменён доступным compact select.
   Автотест и browser QA при 390 px + extra-large font подтверждают скрытый
   список, отсутствие overflow и расстояние 14 px между selector и article.
